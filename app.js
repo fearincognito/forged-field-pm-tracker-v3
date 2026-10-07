@@ -736,6 +736,18 @@ function escapeHtml(value) {
 }
 
 async function startApp() {
+  const passwordRecoveryLink =
+    String(window.location.hash || "").includes("type=recovery") ||
+    new URLSearchParams(window.location.search).get("type") === "recovery";
+
+  // A recovery link temporarily creates an authenticated session so the user can
+  // change their password. Do not treat that temporary session as a normal login.
+  // password_reset.js owns the screen until the new password is saved.
+  if (passwordRecoveryLink) {
+    showLogin();
+    return;
+  }
+
   const { data: { session }, error } = await db.auth.getSession();
 
   if (error) {
