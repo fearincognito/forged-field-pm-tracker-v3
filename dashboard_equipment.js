@@ -8,22 +8,63 @@
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/([a-z])([0-9])/g, "$1 $2")
+    .replace(/([0-9])([a-z])/g, "$1 $2")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
   const compactSearch = v => normalizeSearch(v).replace(/\s+/g, "");
+
+  // Small typo tolerance for field use: one missing, extra, swapped or wrong character.
+  // Kept off very short searches so "LP" / "12" do not return a pile of unrelated units.
+  const nearMatch = (a,b) => {
+    if (a === b) return true;
+    if (Math.min(a.length,b.length) < 4 || Math.abs(a.length-b.length) > 1) return false;
+
+    if (a.length === b.length) {
+      const diff=[];
+      for(let i=0;i<a.length;i++) if(a[i]!==b[i]) diff.push(i);
+      if(diff.length===1) return true;
+      if(diff.length===2 && diff[1]===diff[0]+1) {
+        const i=diff[0], j=diff[1];
+        return a[i]===b[j] && a[j]===b[i];
+      }
+      return false;
+    }
+
+    const short=a.length<b.length?a:b;
+    const long=a.length<b.length?b:a;
+    let i=0,j=0,misses=0;
+    while(i<short.length && j<long.length){
+      if(short[i]===long[j]){ i++; j++; }
+      else { misses++; j++; if(misses>1) return false; }
+    }
+    return true;
+  };
+
   const flexibleMatch = (query, values) => {
     const normalizedQuery = normalizeSearch(query);
     if (!normalizedQuery) return true;
 
-    const haystack = values.filter(Boolean).join(" ");
-    const normalizedHaystack = normalizeSearch(haystack);
-    const compactHaystack = compactSearch(haystack);
+    const cleanValues = values.filter(v => v !== null && v !== undefined && String(v).trim() !== "");
+    const normalizedValues = cleanValues.map(normalizeSearch);
+    const compactValues = cleanValues.map(compactSearch);
+    const normalizedHaystack = normalizedValues.join(" ");
+    const compactHaystack = compactValues.join("");
     const compactQuery = compactSearch(query);
     const terms = normalizedQuery.split(/\s+/).filter(Boolean);
+    const words = normalizedValues.flatMap(v => v.split(/\s+/).filter(Boolean));
 
-    return normalizedHaystack.includes(normalizedQuery)
-      || (compactQuery && compactHaystack.includes(compactQuery))
-      || terms.every(term => normalizedHaystack.includes(term) || compactHaystack.includes(term));
+    if (normalizedHaystack.includes(normalizedQuery)) return true;
+    if (compactQuery && compactHaystack.includes(compactQuery)) return true;
+    if (compactQuery && compactValues.some(v => nearMatch(compactQuery,v))) return true;
+
+    return terms.every(term => {
+      const compactTerm = compactSearch(term);
+      return normalizedHaystack.includes(term)
+        || compactHaystack.includes(compactTerm)
+        || words.some(word => nearMatch(term,word))
+        || compactValues.some(value => nearMatch(compactTerm,value));
+    });
   };
   const replace = (button,handler) => {
     if(!button) return null;
