@@ -9,16 +9,25 @@
     style.id = "equipmentPhotoLayoutStyles";
     style.textContent = `
       .equipment-heading-with-photo{
-        display:grid !important;
-        grid-template-columns:minmax(0,1fr) auto;
-        align-items:start !important;
-        gap:18px;
+        display:flex !important;
+        align-items:flex-start !important;
+        justify-content:flex-start !important;
+        gap:14px;
+        flex-wrap:wrap;
       }
       .equipment-heading-with-photo > :first-child{
+        flex:0 1 auto;
         min-width:0;
+      }
+      .equipment-photo-inline-cluster{
+        display:flex;
+        align-items:flex-start;
+        gap:8px;
+        flex:0 0 auto;
       }
       .equipment-header-photo-button{
         display:block;
+        flex:0 0 auto;
         padding:0;
         border:0;
         background:transparent;
@@ -26,7 +35,6 @@
         cursor:zoom-in;
         line-height:0;
         box-shadow:0 2px 8px rgba(15,36,54,.18);
-        align-self:start;
       }
       .equipment-header-photo-button:hover,
       .equipment-header-photo-button:focus-visible{
@@ -40,24 +48,41 @@
         object-fit:cover;
         border-radius:10px;
       }
+      .equipment-photo-inline-controls{
+        display:flex;
+        flex-direction:column;
+        align-items:stretch;
+        gap:5px;
+        min-width:92px;
+      }
+      .equipment-photo-inline-controls .form-actions{
+        display:flex !important;
+        flex-direction:column;
+        align-items:stretch;
+        gap:5px;
+        margin:0 !important;
+      }
+      .equipment-photo-inline-controls button{
+        min-height:0 !important;
+        padding:6px 9px !important;
+        font-size:12px !important;
+        line-height:1.15 !important;
+        white-space:nowrap;
+        border-radius:7px !important;
+      }
+      .equipment-photo-inline-controls .field-status{
+        max-width:150px;
+        margin:1px 0 0;
+        font-size:11px;
+        line-height:1.25;
+      }
       .equipment-header-actions{
         width:100%;
         margin-top:10px;
         margin-bottom:0;
       }
       .equipment-photo-panel.compact-photo-controls{
-        margin-top:12px;
-        padding:8px 10px;
-      }
-      .equipment-photo-panel.compact-photo-controls > .section-heading,
-      .equipment-photo-panel.compact-photo-controls > .equipment-photo-image{
         display:none !important;
-      }
-      .equipment-photo-panel.compact-photo-controls > .form-actions{
-        margin-top:0 !important;
-      }
-      .equipment-photo-panel.compact-photo-controls > .field-status{
-        margin-bottom:0;
       }
       .equipment-photo-lightbox{
         position:fixed;
@@ -92,11 +117,21 @@
       }
       @media (max-width:640px){
         .equipment-heading-with-photo{
-          gap:12px;
+          gap:10px;
         }
         .equipment-header-photo{
           width:112px;
           height:78px;
+        }
+        .equipment-photo-inline-cluster{
+          gap:6px;
+        }
+        .equipment-photo-inline-controls{
+          min-width:78px;
+        }
+        .equipment-photo-inline-controls button{
+          padding:5px 7px !important;
+          font-size:11px !important;
         }
         .equipment-photo-lightbox{
           padding:14px;
@@ -161,7 +196,11 @@
 
     heading.classList.add("equipment-heading-with-photo");
 
-    if (!heading.querySelector("#equipmentHeaderPhotoButton")) {
+    if (!heading.querySelector("#equipmentPhotoInlineCluster")) {
+      const cluster = document.createElement("div");
+      cluster.id = "equipmentPhotoInlineCluster";
+      cluster.className = "equipment-photo-inline-cluster";
+
       const thumbnailButton = document.createElement("button");
       thumbnailButton.id = "equipmentHeaderPhotoButton";
       thumbnailButton.type = "button";
@@ -171,11 +210,33 @@
       thumbnailButton.innerHTML = `<img class="equipment-header-photo" alt="Equipment photo thumbnail">`;
       thumbnailButton.querySelector("img").src = fullImage.src;
       thumbnailButton.addEventListener("click", () => openLightbox(fullImage.src));
-      heading.appendChild(thumbnailButton);
+      cluster.appendChild(thumbnailButton);
+
+      const panelActions = panel.querySelector(".form-actions");
+      const panelStatus = panel.querySelector(".field-status");
+      if (panelActions || panelStatus) {
+        const controls = document.createElement("div");
+        controls.className = "equipment-photo-inline-controls";
+
+        if (panelActions) {
+          const cameraButton = panelActions.querySelector("#equipmentPrimaryPhotoCameraButton");
+          const chooseButton = panelActions.querySelector("#equipmentPrimaryPhotoChooseButton");
+          const removeButton = panelActions.querySelector("#equipmentPrimaryPhotoRemoveButton");
+          if (cameraButton) cameraButton.textContent = "📷 Retake";
+          if (chooseButton) chooseButton.textContent = "Replace";
+          if (removeButton) removeButton.textContent = "Remove";
+          controls.appendChild(panelActions);
+        }
+        if (panelStatus) controls.appendChild(panelStatus);
+        cluster.appendChild(controls);
+      }
+
+      const titleBlock = heading.firstElementChild;
+      if (titleBlock) titleBlock.insertAdjacentElement("afterend", cluster);
+      else heading.prepend(cluster);
     }
 
-    // Keep the equipment name and thumbnail on the same line, then place the
-    // normal equipment actions directly underneath as their own full-width row.
+    // Keep the normal equipment actions directly underneath as their own row.
     if (actions && actions.parentElement === heading) {
       actions.classList.add("equipment-header-actions");
       heading.insertAdjacentElement("afterend", actions);
