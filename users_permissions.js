@@ -108,6 +108,7 @@
           </div>
           <div class="form-actions compact-actions">
             <button id="usersBack" type="button">← Dashboard</button>
+            ${currentProfile.role === "owner" ? `<button id="manualViewerButton" type="button">+ Manual Viewer Login</button>` : ""}
             <button id="inviteUserButton" type="button">+ Invite User</button>
           </div>
         </div>
@@ -123,6 +124,8 @@
 
     document.querySelector("#usersBack").addEventListener("click", window.renderDashboard);
     document.querySelector("#inviteUserButton").addEventListener("click", () => showInviteUserForm(sites));
+    const manualViewerButton = document.querySelector("#manualViewerButton");
+    if (manualViewerButton) manualViewerButton.addEventListener("click", () => showManualViewerForm(sites));
     document.querySelectorAll(".editUserAccess").forEach(button => {
       button.addEventListener("click", () => {
         const user = users.find(row => row.user_id === button.dataset.id);
@@ -161,6 +164,120 @@
       ? ["owner", "admin", "mechanic", "operator", "viewer"]
       : ["mechanic", "operator", "viewer"];
     return roles.map(role => `<option value="${role}" ${role === selected ? "selected" : ""}>${escapeHtml(roleLabel(role))}</option>`).join("");
+  }
+
+  function showManualViewerForm(sites) {
+    const grid = appView.querySelector(".grid");
+    const allSiteIds = sites.map(site => site.id);
+    grid.innerHTML = `
+      <section class="card" style="grid-column:1/-1;">
+        <div class="section-heading">
+          <div>
+            <h2 style="margin:0;">Create Manual Viewer Login</h2>
+            <small>Create a read-only login now and send the credentials yourself whenever you are ready.</small>
+          </div>
+          <button id="manualViewerBack" type="button">← Users</button>
+        </div>
+
+        <div class="location-box" style="margin-top:18px;">
+          <strong>Read-only test account</strong>
+          <p style="margin-bottom:0;">No invitation email is sent. A login and random password are created and shown to you once so you can copy them into a text or email later.</p>
+        </div>
+
+        <form id="manualViewerForm" style="margin-top:18px;">
+          <div class="form-grid">
+            <label>Display Name<input id="manualViewerName" type="text" required value="Manager Demo"></label>
+            <label>Login Label<input id="manualViewerLoginName" type="text" required value="manager-demo"><small>This becomes part of the sign-in email.</small></label>
+            <label>Role<input type="text" value="Viewer — Read Only" disabled></label>
+          </div>
+
+          <div class="location-box" style="margin-top:18px;">
+            <strong>Site Access</strong><br>
+            <small>All current active sites are selected by default. Uncheck any you do not want the demo account to see.</small>
+            <div style="margin-top:8px;">${siteCheckboxes(sites, allSiteIds)}</div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit">Create Manual Viewer Login</button>
+            <button id="manualViewerCancel" type="button" class="secondary-button">Cancel</button>
+          </div>
+          <p id="manualViewerMessage" class="field-status"></p>
+        </form>
+      </section>`;
+
+    const goBack = () => window.showUsersManagement();
+    document.querySelector("#manualViewerBack").addEventListener("click", goBack);
+    document.querySelector("#manualViewerCancel").addEventListener("click", goBack);
+
+    document.querySelector("#manualViewerForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      const message = document.querySelector("#manualViewerMessage");
+      const siteIds = selectedSiteIds();
+      if (!siteIds.length) {
+        message.innerHTML = '<span class="error-text">Select at least one site for the Viewer account.</span>';
+        return;
+      }
+
+      message.textContent = "Creating read-only login...";
+      const { data, error } = await db.functions.invoke("invite-user", {
+        body: {
+          mode: "manual_viewer",
+          full_name: document.querySelector("#manualViewerName").value.trim(),
+          login_name: document.querySelector("#manualViewerLoginName").value.trim(),
+          role: "viewer",
+          site_ids: siteIds
+        }
+      });
+
+      if (error || data?.error) {
+        const text = data?.error || error?.message || "Manual Viewer login could not be created.";
+        message.innerHTML = `<span class="error-text">${escapeHtml(text)}</span>`;
+        return;
+      }
+
+      const siteUrl = "https://fearincognito.github.io/forged-field-pm-tracker-v3/";
+      const loginText = `Forged Field PM Tracker V3\n${siteUrl}\n\nLogin: ${data.email}\nPassword: ${data.password}\n\nAccess: Viewer (read only)`;
+
+      grid.innerHTML = `
+        <section class="card" style="grid-column:1/-1;">
+          <div class="section-heading">
+            <div><h2 style="margin:0;">Manual Viewer Login Created</h2><small>Copy these details before leaving this page.</small></div>
+            <button id="manualViewerDone" type="button">Done</button>
+          </div>
+
+          <div class="location-box" style="margin-top:18px;">
+            <strong>Important</strong>
+            <p style="margin-bottom:0;">The password is only displayed here. The account itself remains available in Users & Access and can be disabled later.</p>
+          </div>
+
+          <div class="detail-grid" style="margin-top:18px;">
+            <div class="detail-item"><small>Website</small><strong>${escapeHtml(siteUrl)}</strong></div>
+            <div class="detail-item"><small>Login</small><strong>${escapeHtml(data.email)}</strong></div>
+            <div class="detail-item"><small>Password</small><strong>${escapeHtml(data.password)}</strong></div>
+            <div class="detail-item"><small>Access</small><strong>Viewer — Read Only</strong></div>
+          </div>
+
+          <div class="form-actions" style="margin-top:18px;">
+            <button id="copyManualViewerLogin" type="button">Copy Login Details</button>
+            <button id="manualViewerDoneBottom" type="button" class="secondary-button">Done</button>
+          </div>
+          <p id="copyManualViewerMessage" class="field-status"></p>
+        </section>`;
+
+      const done = () => window.showUsersManagement();
+      document.querySelector("#manualViewerDone").addEventListener("click", done);
+      document.querySelector("#manualViewerDoneBottom").addEventListener("click", done);
+      document.querySelector("#copyManualViewerLogin").addEventListener("click", async () => {
+        const copyMessage = document.querySelector("#copyManualViewerMessage");
+        try {
+          await navigator.clipboard.writeText(loginText);
+          copyMessage.innerHTML = "<strong>Login details copied.</strong>";
+        } catch (copyError) {
+          console.error("Copy login details error:", copyError);
+          copyMessage.textContent = "Copy was blocked by the browser. Select the login and password above and copy them manually.";
+        }
+      });
+    });
   }
 
   function showInviteUserForm(sites) {
