@@ -934,13 +934,13 @@ window.openSite = async function(siteId) {
   document
     .querySelector("#addEquipmentButton")
     .addEventListener("click", () => {
-      alert("Add Equipment is the next feature.");
+      showAddEquipmentForm(siteId);
     });
 
   document
     .querySelector("#addSiteItemButton")
     .addEventListener("click", () => {
-      alert("Add Site Item is coming next.");
+      showAddSiteItemForm(siteId);
     });
 
   document
@@ -961,6 +961,356 @@ window.openSite = async function(siteId) {
       alert("Site Pack List is coming next.");
     });
 };
+
+/* --------------------------------------------------
+   ADD EQUIPMENT
+-------------------------------------------------- */
+
+function showAddEquipmentForm(siteId) {
+  const grid = appView.querySelector(".grid");
+
+  grid.innerHTML = `
+    <section class="card" style="grid-column:1/-1;">
+      <div class="section-heading">
+        <div>
+          <h2 style="margin:0;">Add Equipment</h2>
+          <small>Add a powered or maintained asset to this site.</small>
+        </div>
+        <button id="cancelEquipment" type="button">← Back to Site</button>
+      </div>
+
+      <form id="equipmentForm">
+        <div class="form-grid">
+          <label>Unit Number
+            <input id="equipmentUnitNumber" type="text" placeholder="Example: LP-12">
+          </label>
+
+          <label>Equipment Name
+            <input id="equipmentName" type="text" required placeholder="Example: Light Plant">
+          </label>
+
+          <label>Make
+            <input id="equipmentMake" type="text" placeholder="Example: Wacker Neuson">
+          </label>
+
+          <label>Model
+            <input id="equipmentModel" type="text">
+          </label>
+
+          <label>Equipment Serial Number
+            <input id="equipmentSerial" type="text">
+          </label>
+
+          <label>Engine Serial Number
+            <input id="equipmentEngineSerial" type="text">
+          </label>
+
+          <label>VIN
+            <input id="equipmentVin" type="text" value="N/A">
+          </label>
+
+          <label>Rental / Owned
+            <select id="equipmentOwnership">
+              <option value="owned">Owned</option>
+              <option value="rental">Rental</option>
+            </select>
+          </label>
+
+          <label>Status
+            <select id="equipmentStatus">
+              <option value="active">Active</option>
+              <option value="rental">Rental</option>
+              <option value="out_of_service">Out of Service</option>
+            </select>
+          </label>
+
+          <label>Current Engine Hours
+            <input id="equipmentHours" type="number" min="0" step="0.1">
+          </label>
+
+          <label>Expected Operation
+            <select id="equipmentHoursPerDay">
+              <option value="">Not set</option>
+              <option value="12">12 hrs/day</option>
+              <option value="24">24 hrs/day</option>
+            </select>
+          </label>
+
+          <label>Oil Type
+            <input id="equipmentOilType" type="text" placeholder="Example: 15W-40">
+          </label>
+
+          <label>Oil Capacity
+            <input id="equipmentOilCapacity" type="number" min="0" step="0.01">
+          </label>
+        </div>
+
+        <label>Notes
+          <textarea id="equipmentNotes" rows="5" placeholder="Optional equipment notes"></textarea>
+        </label>
+
+        <div class="location-box">
+          <div class="section-heading">
+            <div>
+              <strong>Equipment GPS Location</strong><br>
+              <small>Optional. Stand beside the equipment and capture its current location.</small>
+            </div>
+            <button id="setEquipmentLocation" type="button">📍 Set Current Location</button>
+          </div>
+
+          <div class="form-grid">
+            <label>Latitude
+              <input id="equipmentLatitude" type="number" step="any">
+            </label>
+            <label>Longitude
+              <input id="equipmentLongitude" type="number" step="any">
+            </label>
+          </div>
+          <input id="equipmentGpsAccuracy" type="hidden">
+          <p id="equipmentLocationStatus" class="field-status"></p>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit">Save Equipment</button>
+          <button id="cancelEquipmentBottom" type="button" class="secondary-button">Cancel</button>
+        </div>
+        <p id="equipmentFormMessage" class="field-status"></p>
+      </form>
+    </section>
+  `;
+
+  const back = () => openSite(siteId);
+  document.querySelector("#cancelEquipment").addEventListener("click", back);
+  document.querySelector("#cancelEquipmentBottom").addEventListener("click", back);
+  document.querySelector("#setEquipmentLocation").addEventListener("click", () => {
+    captureCurrentLocation(
+      "equipmentLatitude",
+      "equipmentLongitude",
+      "equipmentGpsAccuracy",
+      "equipmentLocationStatus"
+    );
+  });
+  document.querySelector("#equipmentForm").addEventListener("submit", (event) => {
+    saveEquipment(event, siteId);
+  });
+}
+
+async function saveEquipment(event, siteId) {
+  event.preventDefault();
+  const message = document.querySelector("#equipmentFormMessage");
+  message.textContent = "Saving equipment...";
+
+  const numberOrNull = (id) => {
+    const value = document.querySelector(`#${id}`).value;
+    return value === "" ? null : Number(value);
+  };
+  const textOrNull = (id) => document.querySelector(`#${id}`).value.trim() || null;
+
+  const latitude = numberOrNull("equipmentLatitude");
+  const longitude = numberOrNull("equipmentLongitude");
+  const accuracy = numberOrNull("equipmentGpsAccuracy");
+
+  const record = {
+    site_id: siteId,
+    unit_number: textOrNull("equipmentUnitNumber"),
+    name: document.querySelector("#equipmentName").value.trim(),
+    make: textOrNull("equipmentMake"),
+    model: textOrNull("equipmentModel"),
+    serial_number: textOrNull("equipmentSerial"),
+    engine_serial_number: textOrNull("equipmentEngineSerial"),
+    vin: textOrNull("equipmentVin") || "N/A",
+    ownership: document.querySelector("#equipmentOwnership").value,
+    status: document.querySelector("#equipmentStatus").value,
+    current_hours: numberOrNull("equipmentHours"),
+    operating_hours_per_day: numberOrNull("equipmentHoursPerDay"),
+    oil_type: textOrNull("equipmentOilType"),
+    oil_capacity: numberOrNull("equipmentOilCapacity"),
+    notes: textOrNull("equipmentNotes"),
+    latitude,
+    longitude,
+    gps_accuracy_m: accuracy,
+    gps_captured_at: accuracy != null ? new Date().toISOString() : null,
+    gps_captured_by: accuracy != null ? currentUser.id : null,
+    archived: false,
+    created_by: currentUser.id,
+    updated_by: currentUser.id
+  };
+
+  const { error } = await db.from("equipment").insert(record);
+
+  if (error) {
+    console.error("Equipment save error:", error);
+    message.innerHTML = `<span class="error-text">${escapeHtml(error.message)}</span>`;
+    return;
+  }
+
+  await openSite(siteId);
+}
+
+/* --------------------------------------------------
+   ADD SITE ITEM
+-------------------------------------------------- */
+
+function showAddSiteItemForm(siteId) {
+  const grid = appView.querySelector(".grid");
+
+  grid.innerHTML = `
+    <section class="card" style="grid-column:1/-1;">
+      <div class="section-heading">
+        <div>
+          <h2 style="margin:0;">Add Site Item</h2>
+          <small>For fixed or non-powered items that do not need full equipment records.</small>
+        </div>
+        <button id="cancelSiteItem" type="button">← Back to Site</button>
+      </div>
+
+      <form id="siteItemForm">
+        <div class="form-grid">
+          <label>Name / ID
+            <input id="siteItemName" type="text" required placeholder="Example: Supply Trailer 1">
+          </label>
+
+          <label>Type
+            <select id="siteItemType">
+              <option value="supply_trailer">Supply Trailer</option>
+              <option value="bathroom">Bathroom</option>
+              <option value="laydown">Laydown</option>
+              <option value="connex">Connex / Sea Can</option>
+              <option value="fuel_tank">Fuel Tank</option>
+              <option value="water_tank">Water Tank</option>
+              <option value="storage">Storage</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+        </div>
+
+        <label>Description
+          <textarea id="siteItemDescription" rows="4" placeholder="Optional description"></textarea>
+        </label>
+
+        <label>Notes
+          <textarea id="siteItemNotes" rows="5" placeholder="Optional notes"></textarea>
+        </label>
+
+        <div class="location-box">
+          <div class="section-heading">
+            <div>
+              <strong>Site Item GPS Location</strong><br>
+              <small>Stand beside the item and save where it is located.</small>
+            </div>
+            <button id="setSiteItemLocation" type="button">📍 Set Current Location</button>
+          </div>
+
+          <div class="form-grid">
+            <label>Latitude
+              <input id="siteItemLatitude" type="number" step="any">
+            </label>
+            <label>Longitude
+              <input id="siteItemLongitude" type="number" step="any">
+            </label>
+          </div>
+          <input id="siteItemGpsAccuracy" type="hidden">
+          <p id="siteItemLocationStatus" class="field-status"></p>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit">Save Site Item</button>
+          <button id="cancelSiteItemBottom" type="button" class="secondary-button">Cancel</button>
+        </div>
+        <p id="siteItemFormMessage" class="field-status"></p>
+      </form>
+    </section>
+  `;
+
+  const back = () => openSite(siteId);
+  document.querySelector("#cancelSiteItem").addEventListener("click", back);
+  document.querySelector("#cancelSiteItemBottom").addEventListener("click", back);
+  document.querySelector("#setSiteItemLocation").addEventListener("click", () => {
+    captureCurrentLocation(
+      "siteItemLatitude",
+      "siteItemLongitude",
+      "siteItemGpsAccuracy",
+      "siteItemLocationStatus"
+    );
+  });
+  document.querySelector("#siteItemForm").addEventListener("submit", (event) => {
+    saveSiteItem(event, siteId);
+  });
+}
+
+async function saveSiteItem(event, siteId) {
+  event.preventDefault();
+  const message = document.querySelector("#siteItemFormMessage");
+  message.textContent = "Saving site item...";
+
+  const valueOrNull = (id) => document.querySelector(`#${id}`).value.trim() || null;
+  const numericOrNull = (id) => {
+    const value = document.querySelector(`#${id}`).value;
+    return value === "" ? null : Number(value);
+  };
+
+  const latitude = numericOrNull("siteItemLatitude");
+  const longitude = numericOrNull("siteItemLongitude");
+  const accuracy = numericOrNull("siteItemGpsAccuracy");
+
+  const record = {
+    site_id: siteId,
+    name: document.querySelector("#siteItemName").value.trim(),
+    item_type: document.querySelector("#siteItemType").value,
+    description: valueOrNull("siteItemDescription"),
+    notes: valueOrNull("siteItemNotes"),
+    latitude,
+    longitude,
+    gps_accuracy_m: accuracy,
+    gps_captured_at: accuracy != null ? new Date().toISOString() : null,
+    gps_captured_by: accuracy != null ? currentUser.id : null,
+    archived: false,
+    created_by: currentUser.id,
+    updated_by: currentUser.id
+  };
+
+  const { error } = await db.from("site_items").insert(record);
+
+  if (error) {
+    console.error("Site item save error:", error);
+    message.innerHTML = `<span class="error-text">${escapeHtml(error.message)}</span>`;
+    return;
+  }
+
+  await openSite(siteId);
+}
+
+/* --------------------------------------------------
+   GPS SNAPSHOT
+-------------------------------------------------- */
+
+function captureCurrentLocation(latitudeId, longitudeId, accuracyId, statusId) {
+  const status = document.querySelector(`#${statusId}`);
+
+  if (!navigator.geolocation) {
+    status.innerHTML = '<span class="error-text">Location is not supported by this device/browser.</span>';
+    return;
+  }
+
+  status.textContent = "Getting current location...";
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      document.querySelector(`#${latitudeId}`).value = position.coords.latitude.toFixed(6);
+      document.querySelector(`#${longitudeId}`).value = position.coords.longitude.toFixed(6);
+      document.querySelector(`#${accuracyId}`).value = Math.round(position.coords.accuracy * 10) / 10;
+      status.textContent = `Location captured — accuracy ±${Math.round(position.coords.accuracy)} m`;
+    },
+    (error) => {
+      status.innerHTML = `<span class="error-text">Could not get location: ${escapeHtml(error.message)}</span>`;
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 0
+    }
+  );
+}
 
 window.navigateToSite = function(latitude, longitude) {
   const destination =
