@@ -13,6 +13,11 @@
     return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
   }
 
+  function mapsEmbedUrl(latitude, longitude) {
+    const point = `${latitude},${longitude}`;
+    return `https://maps.google.com/maps?q=${encodeURIComponent(point)}&z=16&t=k&output=embed`;
+  }
+
   window.openEquipment = async function (equipmentId, siteId) {
     await baseOpenEquipment(equipmentId, siteId);
 
@@ -50,8 +55,17 @@
       return heading === "saved gps location" || heading === "gps location";
     });
 
-    if (!gpsBox || gpsBox.querySelector("#equipmentGpsNavigateInline")) {
+    if (!gpsBox || gpsBox.querySelector("#equipmentGpsMapPreview")) {
       return;
+    }
+
+    const details = document.createElement("div");
+    details.style.flex = "1 1 260px";
+    details.style.minWidth = "0";
+
+    // Preserve the existing heading/coordinates rendered by the equipment page.
+    while (gpsBox.firstChild) {
+      details.appendChild(gpsBox.firstChild);
     }
 
     const navigateButton = document.createElement("button");
@@ -62,7 +76,29 @@
     navigateButton.addEventListener("click", () => {
       window.open(url, "_blank", "noopener");
     });
+    details.appendChild(navigateButton);
 
-    gpsBox.appendChild(navigateButton);
+    const mapFrame = document.createElement("iframe");
+    mapFrame.id = "equipmentGpsMapPreview";
+    mapFrame.title = "Saved equipment location on Google Maps";
+    mapFrame.src = mapsEmbedUrl(machine.latitude, machine.longitude);
+    mapFrame.loading = "lazy";
+    mapFrame.referrerPolicy = "no-referrer-when-downgrade";
+    mapFrame.setAttribute("allowfullscreen", "");
+    mapFrame.style.width = "180px";
+    mapFrame.style.height = "180px";
+    mapFrame.style.maxWidth = "100%";
+    mapFrame.style.border = "0";
+    mapFrame.style.borderRadius = "10px";
+    mapFrame.style.flex = "0 0 180px";
+    mapFrame.style.background = "#dbe8f2";
+
+    gpsBox.style.display = "flex";
+    gpsBox.style.alignItems = "center";
+    gpsBox.style.justifyContent = "space-between";
+    gpsBox.style.gap = "16px";
+    gpsBox.style.flexWrap = "wrap";
+    gpsBox.appendChild(details);
+    gpsBox.appendChild(mapFrame);
   };
 })();
