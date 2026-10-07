@@ -1,1 +1,125 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Forged Field PM Tracker V3</title><link rel="stylesheet" href="styles.css"></head><body><main class="shell"><section id="loginView" class="card login"><h1>Forged Field PM Tracker <b>V3</b></h1><p>Secure field maintenance access</p><form id="loginForm"><label>Email<input id="email" type="email" autocomplete="username" required></label><label>Password<input id="password" type="password" autocomplete="current-password" required></label><button>Sign in</button><p id="msg"></p></form></section><section id="appView" class="hidden"><header><h2>Forged Field PM Tracker V3</h2><button id="logout">Sign out</button></header><div class="card"><span id="role"></span><h1 id="name">Welcome</h1><p id="account"></p><strong>● Cloud connection active</strong></div><div class="grid"><div class="card">Sites<br><small>V3 database ready</small></div><div class="card">Equipment<br><small>V3 database ready</small></div><div class="card">Work Tickets<br><small>V3 database ready</small></div><div class="card">Service History<br><small>V3 database ready</small></div></div><footer>Designed by Harley Niedzielski — Forged Drilling Mechanic</footer></section></main><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Forged Field PM Tracker V3</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+<main class="shell">
+
+  <!-- LOGIN -->
+  <section id="loginView" class="card login">
+    <h1>Forged Field PM Tracker <b>V3</b></h1>
+    <p>Secure field maintenance access</p>
+
+    <form id="loginForm">
+      <label>
+        Email
+        <input id="email" type="email" autocomplete="username" required>
+      </label>
+
+      <label>
+        Password
+        <input id="password" type="password" autocomplete="current-password" required>
+      </label>
+
+      <button>Sign in</button>
+      <p id="msg"></p>
+    </form>
+  </section>
+
+
+  <!-- APP -->
+  <section id="appView" class="hidden">
+
+    <header>
+      <h2>Forged Field PM Tracker V3</h2>
+      <button id="logout">Sign out</button>
+    </header>
+
+
+    <!-- DASHBOARD -->
+    <section id="dashboardView">
+
+      <div class="card">
+        <span id="role"></span>
+        <h1 id="name">Welcome</h1>
+        <p id="account"></p>
+        <strong>● Cloud connection active</strong>
+      </div>
+
+      <div class="grid">
+
+        <button id="sitesButton" class="card dashboard-card">
+          <strong>Sites</strong>
+          <small>Manage job sites</small>
+        </button>
+
+        <div class="card">
+          <strong>Equipment</strong><br>
+          <small>V3 database ready</small>
+        </div>
+
+        <div class="card">
+          <strong>Work Tickets</strong><br>
+          <small>V3 database ready</small>
+        </div>
+
+        <div class="card">
+          <strong>Service History</strong><br>
+          <small>V3 database ready</small>
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- SITES -->
+    <section id="sitesView" class="hidden">
+
+      <div class="page-heading">
+        <button id="backDashboard" type="button">← Dashboard</button>
+        <h1>Job Sites</h1>
+      </div>
+
+      <div class="card">
+
+        <div class="section-heading">
+          <div>
+            <h2>Active Sites</h2>
+            <p>Forged Drilling field locations</p>
+          </div>
+
+          <button id="addSiteButton" type="button">
+            + Add Site
+          </button>
+        </div>
+
+        <p id="sitesMessage"></p>
+
+        <div id="sitesList">
+          <p>Loading sites...</p>
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <footer>
+      Designed by Harley Niedzielski — Forged Drilling Mechanic
+    </footer>
+
+  </section>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js"></script>
+
+</body>
+</html>
