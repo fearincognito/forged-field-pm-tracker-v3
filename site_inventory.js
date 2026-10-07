@@ -155,39 +155,122 @@
     });
   }
 
-  window.showPackList = async function(siteId) {
-    const grid = appView.querySelector(".grid");
-    grid.innerHTML = `<section class="card" style="grid-column:1/-1;"><p>Building pack list...</p></section>`;
-
-    const [{ data: site }, equipmentResult, inventoryResult] = await Promise.all([
+  async function loadPackListBase(siteId) {
+    const [siteResult, equipmentResult, inventoryResult] = await Promise.all([
       getSite(siteId),
-      db.from("equipment").select("id,unit_number,name").eq("site_id", siteId).eq("archived", false),
+      db.from("equipment").select("id,unit_number,name,make,model").eq("site_id", siteId).eq("archived", false).order("name"),
       db.from("site_inventory").select("part_number,quantity_on_hand,description,category").eq("site_id", siteId)
     ]);
 
-    if (equipmentResult.error || inventoryResult.error) {
-      const error = equipmentResult.error || inventoryResult.error;
-      grid.innerHTML = `<section class="card" style="grid-column:1/-1;"><h2>Pack list could not be built</h2><p class="error-text">${escapeHtml(error.message)}</p><button id="packBack">← Back to Site</button></section>`;
-      document.querySelector("#packBack").addEventListener("click", () => window.openSite(siteId));
+    return {
+      site: siteResult.data,
+      equipment: equipmentResult.data || [],
+      inventory: inventoryResult.data || [],
+      error: siteResult.error || equipmentResult.error || inventoryResult.error
+    };
+  }
+
+  async function showPackEquipmentSelector(siteId) {
+    const grid = appView.querySelector(".grid");
+    grid.innerHTML = `<section class="card" style="grid-column:1/-1;"><p>Loading equipment...</p></section>`;
+
+    const { site, equipment, error } = await loadPackListBase(siteId);
+    if (error) {
+      grid.innerHTML = `<section class="card" style="grid-column:1/-1;"><h2>Pack list could not be started</h2><p class="error-text">${escapeHtml(error.message)}</p><button id="packSelectBack">← Back to Site</button></section>`;
+      document.querySelector("#packSelectBack").addEventListener("click", () => window.openSite(siteId));
       return;
     }
 
-    const equipment = equipmentResult.data || [];
-    const ids = equipment.map(e => e.id);
-    let filters = [];
-    if (ids.length) {
-      const filterResult = await db.from("equipment_filters").select("equipment_id,filter_type,description,part_number,quantity").in("equipment_id", ids);
-      if (filterResult.error) {
-        grid.innerHTML = `<section class="card" style="grid-column:1/-1;"><h2>Pack list could not be built</h2><p class="error-text">${escapeHtml(filterResult.error.message)}</p><button id="packBack">← Back to Site</button></section>`;
-        document.querySelector("#packBack").addEventListener("click", () => window.openSite(siteId));
+    const cards = equipment.length ? equipment.map(machine => {
+      const label = machine.unit_number || machine.name;
+      const makeModel = [machine.make, machine.model].filter(Boolean).join(" ");
+      return `
+        <label class="inset-card compact-card" style="display:flex;align-items:center;gap:12px;margin-top:10px;cursor:pointer;">
+          <input class="packEquipmentCheck" type="checkbox" value="${escapeHtml(machine.id)}" checked style="width:22px;height:22px;flex:0 0 auto;">
+          <span>
+            <strong>${escapeHtml(label)}</strong>
+            ${machine.unit_number && machine.name ? `<br><span>${escapeHtml(machine.name)}</span>` : ""}
+            ${makeModel ? `<br><small>${escapeHtml(makeModel)}</small>` : ""}
+          </span>
+        </label>`;
+    }).join("") : `<div class="empty-state"><strong>No active equipment is assigned to this site.</strong></div>`;
+
+    grid.innerHTML = `
+      <section class="card" style="grid-column:1/-1;">
+        <div class="section-heading">
+          <div><h2 style="margin:0;">Choose Equipment for Pack List</h2><small>${escapeHtml(site?.name || "Site")}</small></div>
+          <button id="packSelectBack" type="button">← Back to Site</button>
+        </div>
+
+        <p><small>Select only the equipment you are packing parts for. All equipment is selected by default so the existing full-site pack list is still one tap away.</small></p>
+
+        ${equipment.length ? `
+          <div class="form-actions compact-actions" style="margin:12px 0;">
+            <button id="packSelectAll" type="button" class="secondary-button">Select All</button>
+            <button id="packClearAll" type="button" class="secondary-button">Clear All</button>
+          </div>` : ""}
+
+        <div>${cards}</div>
+
+        ${equipment.length ? `
+          <div class="form-actions" style="margin-top:18px;">
+            <button id="generateSelectedPackList" type="button">Generate Pack List</button>
+          </div>
+          <p id="packSelectMessage" class="field-status"></p>` : ""}
+      </section>`;
+
+    document.querySelector("#packSelectBack").addEventListener("click", () => window.openSite(siteId));
+    document.querySelector("#packSelectAll")?.addEventListener("click", () => {
+      document.querySelectorAll(".packEquipmentCheck").forEach(input => { input.checked = true; });
+    });
+    document.querySelector("#packClearAll")?.addEventListener("click", () => {
+      document.querySelectorAll(".packEquipmentCheck").forEach(input => { input.checked = false; });
+    });
+    document.querySelector("#generateSelectedPackList")?.addEventListener("click", () => {
+      const selectedIds = Array.from(document.querySelectorAll(".packEquipmentCheck:checked")).map(input => input.value);
+      const message = document.querySelector("#packSelectMessage");
+      if (!selectedIds.length) {
+        message.innerHTML = '<span class="error-text">Select at least one piece of equipment.</span>';
         return;
       }
-      filters = filterResult.data || [];
+      buildPackList(siteId, selectedIds);
+    });
+  }
+
+  async function buildPackList(siteId, selectedIds) {
+    const grid = appView.querySelector(".grid");
+    grid.innerHTML = `<section class="card" style="grid-column:1/-1;"><p>Building pack list...</p></section>`;
+
+    const { site, equipment, inventory, error } = await loadPackListBase(siteId);
+    if (error) {
+      grid.innerHTML = `<section class="card" style="grid-column:1/-1;"><h2>Pack list could not be built</h2><p class="error-text">${escapeHtml(error.message)}</p><button id="packBack">← Equipment Selection</button></section>`;
+      document.querySelector("#packBack").addEventListener("click", () => showPackEquipmentSelector(siteId));
+      return;
     }
 
-    const equipmentById = Object.fromEntries(equipment.map(e => [e.id, e.unit_number || e.name]));
+    const selectedSet = new Set(selectedIds || []);
+    const selectedEquipment = equipment.filter(machine => selectedSet.has(machine.id));
+    const ids = selectedEquipment.map(e => e.id);
+
+    if (!ids.length) {
+      await showPackEquipmentSelector(siteId);
+      return;
+    }
+
+    const filterResult = await db.from("equipment_filters")
+      .select("equipment_id,filter_type,description,part_number,quantity")
+      .in("equipment_id", ids);
+
+    if (filterResult.error) {
+      grid.innerHTML = `<section class="card" style="grid-column:1/-1;"><h2>Pack list could not be built</h2><p class="error-text">${escapeHtml(filterResult.error.message)}</p><button id="packBack">← Equipment Selection</button></section>`;
+      document.querySelector("#packBack").addEventListener("click", () => showPackEquipmentSelector(siteId));
+      return;
+    }
+
+    const filters = filterResult.data || [];
+    const equipmentById = Object.fromEntries(selectedEquipment.map(e => [e.id, e.unit_number || e.name]));
     const inventoryByPart = {};
-    (inventoryResult.data || []).forEach(item => {
+    inventory.forEach(item => {
       const key = String(item.part_number).trim().toUpperCase();
       inventoryByPart[key] = (inventoryByPart[key] || 0) + Number(item.quantity_on_hand || 0);
     });
@@ -221,22 +304,29 @@
             </div>
           </div>
         </article>`;
-    }).join("") : `<div class="empty-state"><strong>No saved equipment filters or service parts to pack yet.</strong></div>`;
+    }).join("") : `<div class="empty-state"><strong>No saved filters or service parts are attached to the selected equipment.</strong></div>`;
+
+    const selectedNames = selectedEquipment.map(e => e.unit_number || e.name).join(", ");
 
     grid.innerHTML = `
       <section class="card" style="grid-column:1/-1;">
         <div class="section-heading">
-          <div><h2 style="margin:0;">Site Pack List</h2><small>${escapeHtml(site?.name || "Site")}</small></div>
+          <div><h2 style="margin:0;">Equipment Pack List</h2><small>${escapeHtml(site?.name || "Site")}</small></div>
           <div class="form-actions compact-actions">
-            <button id="packBack" type="button">← Back to Site</button>
+            <button id="packBack" type="button">← Change Equipment</button>
             <button id="packInventory" type="button">Inventory</button>
           </div>
         </div>
-        <p><small>Required quantities are consolidated across all active equipment. Bring turns orange when site stock is short.</small></p>
+        <p><small><strong>Selected equipment:</strong> ${escapeHtml(selectedNames)}</small></p>
+        <p><small>Required quantities are consolidated only across the selected equipment. Site inventory is then subtracted so Bring shows what still needs to be packed.</small></p>
         <div>${html}</div>
       </section>`;
 
-    document.querySelector("#packBack").addEventListener("click", () => window.openSite(siteId));
+    document.querySelector("#packBack").addEventListener("click", () => showPackEquipmentSelector(siteId));
     document.querySelector("#packInventory").addEventListener("click", () => window.showSiteInventory(siteId));
+  }
+
+  window.showPackList = async function(siteId) {
+    await showPackEquipmentSelector(siteId);
   };
 })();
