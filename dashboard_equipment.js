@@ -4,6 +4,27 @@
   if (typeof baseRenderDashboard !== "function") return;
 
   const label = v => String(v || "active").replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpperCase());
+  const normalizeSearch = v => String(v ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+  const compactSearch = v => normalizeSearch(v).replace(/\s+/g, "");
+  const flexibleMatch = (query, values) => {
+    const normalizedQuery = normalizeSearch(query);
+    if (!normalizedQuery) return true;
+
+    const haystack = values.filter(Boolean).join(" ");
+    const normalizedHaystack = normalizeSearch(haystack);
+    const compactHaystack = compactSearch(haystack);
+    const compactQuery = compactSearch(query);
+    const terms = normalizedQuery.split(/\s+/).filter(Boolean);
+
+    return normalizedHaystack.includes(normalizedQuery)
+      || (compactQuery && compactHaystack.includes(compactQuery))
+      || terms.every(term => normalizedHaystack.includes(term) || compactHaystack.includes(term));
+  };
   const replace = (button,handler) => {
     if(!button) return null;
     const next = button.cloneNode(true);
@@ -52,7 +73,7 @@
 
     const [sitesR,equipmentR,pmR,ticketsR]=await Promise.all([
       db.from("sites").select("id,name").eq("archived",false).order("name"),
-      db.from("equipment").select("id,site_id,unit_number,name,make,model,ownership,status,current_hours").eq("archived",false),
+      db.from("equipment").select("id,site_id,unit_number,name,make,model,serial_number,engine_serial_number,vin,ownership,status,current_hours").eq("archived",false),
       db.from("pm_schedules").select("equipment_id,next_due_hours").eq("active",true),
       db.from("work_tickets").select("equipment_id,status,priority").not("equipment_id","is",null)
     ]);
@@ -85,7 +106,7 @@
       <div class="form-grid" style="margin-top:18px;">
         <label>Site<select id="equipmentSiteFilter"><option value="all">All Sites</option>${sites.map(s=>`<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join("")}</select></label>
         <label>Status<select id="equipmentStatusFilter"><option value="all">All Statuses</option><option value="active">Active</option><option value="rental">Rental</option><option value="out_of_service">Out of Service</option></select></label>
-        <label>Search<input id="equipmentSearch" type="search" placeholder="Unit, name, make or model"></label>
+        <label>Search<input id="equipmentSearch" type="search" placeholder="Unit, name, make, model, serial or site"></label>
       </div>
       <div id="companyEquipmentList" style="margin-top:18px;"></div>
     </section>`;
@@ -94,14 +115,11 @@
     const siteF=document.querySelector("#equipmentSiteFilter"), statusF=document.querySelector("#equipmentStatusFilter"), search=document.querySelector("#equipmentSearch"), list=document.querySelector("#companyEquipmentList");
 
     function render(){
-      const q=search.value.trim().toLowerCase();
+      const q=search.value.trim();
       const rows=machines.filter(m=>{
         if(siteF.value!=="all"&&m.site_id!==siteF.value) return false;
         if(statusF.value!=="all"&&m.status!==statusF.value) return false;
-        if(q){
-          const hay=[m.unit_number,m.name,m.make,m.model,siteNames[m.site_id]].filter(Boolean).join(" ").toLowerCase();
-          if(!hay.includes(q)) return false;
-        }
+        if(q && !flexibleMatch(q,[m.unit_number,m.name,m.make,m.model,m.serial_number,m.engine_serial_number,m.vin,siteNames[m.site_id]])) return false;
         return true;
       });
       list.innerHTML=rows.length?rows.map(m=>{
