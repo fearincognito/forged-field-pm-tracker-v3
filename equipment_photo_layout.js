@@ -1,4 +1,4 @@
-/* Compact equipment detail photo: thumbnail in header with full-size lightbox. */
+/* Compact equipment detail photo: thumbnail beside the equipment name with full-size lightbox. */
 (function () {
   const baseOpenEquipment = window.openEquipment;
   if (typeof baseOpenEquipment !== "function") return;
@@ -8,12 +8,14 @@
     const style = document.createElement("style");
     style.id = "equipmentPhotoLayoutStyles";
     style.textContent = `
-      .equipment-header-photo-stack{
-        display:flex;
-        flex-direction:column;
-        align-items:flex-end;
-        gap:10px;
-        margin-left:auto;
+      .equipment-heading-with-photo{
+        display:grid !important;
+        grid-template-columns:minmax(0,1fr) auto;
+        align-items:start !important;
+        gap:18px;
+      }
+      .equipment-heading-with-photo > :first-child{
+        min-width:0;
       }
       .equipment-header-photo-button{
         display:block;
@@ -24,6 +26,7 @@
         cursor:zoom-in;
         line-height:0;
         box-shadow:0 2px 8px rgba(15,36,54,.18);
+        align-self:start;
       }
       .equipment-header-photo-button:hover,
       .equipment-header-photo-button:focus-visible{
@@ -36,6 +39,11 @@
         height:100px;
         object-fit:cover;
         border-radius:10px;
+      }
+      .equipment-header-actions{
+        width:100%;
+        margin-top:10px;
+        margin-bottom:0;
       }
       .equipment-photo-panel.compact-photo-controls{
         margin-top:12px;
@@ -83,12 +91,12 @@
         line-height:1;
       }
       @media (max-width:640px){
-        .equipment-header-photo{
-          width:128px;
-          height:88px;
+        .equipment-heading-with-photo{
+          gap:12px;
         }
-        .equipment-header-photo-stack{
-          align-items:flex-end;
+        .equipment-header-photo{
+          width:112px;
+          height:78px;
         }
         .equipment-photo-lightbox{
           padding:14px;
@@ -149,12 +157,11 @@
 
     const heading = Array.from(section.children).find(child => child.classList?.contains("section-heading"));
     const actions = heading?.querySelector(".form-actions.compact-actions");
-    if (!heading || !actions) return;
+    if (!heading) return;
+
+    heading.classList.add("equipment-heading-with-photo");
 
     if (!heading.querySelector("#equipmentHeaderPhotoButton")) {
-      const stack = document.createElement("div");
-      stack.className = "equipment-header-photo-stack";
-
       const thumbnailButton = document.createElement("button");
       thumbnailButton.id = "equipmentHeaderPhotoButton";
       thumbnailButton.type = "button";
@@ -164,10 +171,14 @@
       thumbnailButton.innerHTML = `<img class="equipment-header-photo" alt="Equipment photo thumbnail">`;
       thumbnailButton.querySelector("img").src = fullImage.src;
       thumbnailButton.addEventListener("click", () => openLightbox(fullImage.src));
+      heading.appendChild(thumbnailButton);
+    }
 
-      heading.replaceChild(stack, actions);
-      stack.appendChild(thumbnailButton);
-      stack.appendChild(actions);
+    // Keep the equipment name and thumbnail on the same line, then place the
+    // normal equipment actions directly underneath as their own full-width row.
+    if (actions && actions.parentElement === heading) {
+      actions.classList.add("equipment-header-actions");
+      heading.insertAdjacentElement("afterend", actions);
     }
 
     panel.classList.add("compact-photo-controls");
