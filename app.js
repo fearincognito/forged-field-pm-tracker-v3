@@ -561,35 +561,405 @@ async function saveSite(event) {
 }
 
 /* --------------------------------------------------
-   SITE DETAILS PLACEHOLDER
+   SITE DETAILS
 -------------------------------------------------- */
 
-window.openSite = function(siteId) {
+window.openSite = async function(siteId) {
   const grid = appView.querySelector(".grid");
 
   grid.innerHTML = `
     <section class="card" style="grid-column:1/-1;">
-      <h2>Site Details</h2>
+      <p>Loading site...</p>
+    </section>
+  `;
 
-      <p>
-        Site ID:
-        <strong>${escapeHtml(siteId)}</strong>
-      </p>
+  const [
+    { data: site, error: siteError },
+    { data: equipment, error: equipmentError },
+    { data: siteItems, error: siteItemsError }
+  ] = await Promise.all([
+    db
+      .from("sites")
+      .select(`
+        id,
+        name,
+        description,
+        latitude,
+        longitude,
+        access_notes,
+        rotation_type,
+        rotation_on_days,
+        rotation_off_days,
+        rotation_anchor_date
+      `)
+      .eq("id", siteId)
+      .single(),
 
-      <p>
-        Site equipment, inventory, pack lists and maintenance
-        information will connect here next.
-      </p>
+    db
+      .from("equipment")
+      .select(`
+        id,
+        unit_number,
+        name,
+        make,
+        model,
+        ownership,
+        status,
+        current_hours,
+        archived
+      `)
+      .eq("site_id", siteId)
+      .eq("archived", false)
+      .order("name"),
 
-      <button id="backSites" type="button">
-        ← Back to Sites
-      </button>
+    db
+      .from("site_items")
+      .select(`
+        id,
+        name,
+        item_type,
+        description,
+        latitude,
+        longitude,
+        archived
+      `)
+      .eq("site_id", siteId)
+      .eq("archived", false)
+      .order("name")
+  ]);
+
+  if (siteError) {
+    console.error("Site lookup error:", siteError);
+
+    grid.innerHTML = `
+      <section class="card" style="grid-column:1/-1;">
+        <h2>Site could not be loaded</h2>
+        <p>${escapeHtml(siteError.message)}</p>
+
+        <button id="backSites" type="button">
+          ← Back to Sites
+        </button>
+      </section>
+    `;
+
+    document
+      .querySelector("#backSites")
+      .addEventListener("click", renderSites);
+
+    return;
+  }
+
+  if (equipmentError) {
+    console.error("Equipment lookup error:", equipmentError);
+  }
+
+  if (siteItemsError) {
+    console.error("Site items lookup error:", siteItemsError);
+  }
+
+  let rotationText = "No rotation set";
+
+  if (site.rotation_type === "14_7") {
+    rotationText = "14 days on / 7 days off";
+  }
+
+  if (site.rotation_type === "20_10") {
+    rotationText = "20 days on / 10 days off";
+  }
+
+  if (site.rotation_type === "custom") {
+    rotationText =
+      `${site.rotation_on_days || "?"} days on / ` +
+      `${site.rotation_off_days || "?"} days off`;
+  }
+
+  const equipmentList =
+    equipment && equipment.length
+      ? equipment.map(machine => {
+          const makeModel = [
+            machine.make,
+            machine.model
+          ].filter(Boolean).join(" ");
+
+          return `
+            <article style="
+              border:1px solid #d7e0e7;
+              border-radius:10px;
+              padding:14px;
+              margin-top:10px;
+            ">
+              <strong>
+                ${escapeHtml(machine.unit_number || machine.name)}
+              </strong>
+
+              ${
+                machine.unit_number && machine.name
+                  ? `<div>${escapeHtml(machine.name)}</div>`
+                  : ""
+              }
+
+              ${
+                makeModel
+                  ? `<small>${escapeHtml(makeModel)}</small><br>`
+                  : ""
+              }
+
+              ${
+                machine.current_hours != null
+                  ? `<small><strong>Hours:</strong> ${escapeHtml(machine.current_hours)}</small><br>`
+                  : ""
+              }
+
+              <small>
+                <strong>Status:</strong>
+                ${escapeHtml(machine.status || "active")}
+              </small>
+            </article>
+          `;
+        }).join("")
+      : `
+        <div style="
+          border:1px dashed #aab8c5;
+          border-radius:10px;
+          padding:18px;
+          text-align:center;
+          margin-top:10px;
+        ">
+          <strong>No equipment assigned yet.</strong>
+        </div>
+      `;
+
+  const siteItemsList =
+    siteItems && siteItems.length
+      ? siteItems.map(item => {
+          return `
+            <article style="
+              border:1px solid #d7e0e7;
+              border-radius:10px;
+              padding:14px;
+              margin-top:10px;
+            ">
+              <strong>${escapeHtml(item.name)}</strong><br>
+
+              <small>
+                ${escapeHtml(
+                  String(item.item_type || "other")
+                    .replaceAll("_", " ")
+                )}
+              </small>
+
+              ${
+                item.description
+                  ? `<p>${escapeHtml(item.description)}</p>`
+                  : ""
+              }
+            </article>
+          `;
+        }).join("")
+      : `
+        <div style="
+          border:1px dashed #aab8c5;
+          border-radius:10px;
+          padding:18px;
+          text-align:center;
+          margin-top:10px;
+        ">
+          <strong>No site items added yet.</strong>
+        </div>
+      `;
+
+  const hasLocation =
+    site.latitude != null &&
+    site.longitude != null;
+
+  grid.innerHTML = `
+    <section class="card" style="grid-column:1/-1;">
+
+      <div style="
+        display:flex;
+        justify-content:space-between;
+        align-items:flex-start;
+        gap:12px;
+        flex-wrap:wrap;
+      ">
+        <div>
+          <h2 style="margin:0;">
+            ${escapeHtml(site.name)}
+          </h2>
+
+          ${
+            site.description
+              ? `<p>${escapeHtml(site.description)}</p>`
+              : ""
+          }
+
+          <small>
+            <strong>Rotation:</strong>
+            ${escapeHtml(rotationText)}
+          </small>
+        </div>
+
+        <div style="
+          display:flex;
+          gap:8px;
+          flex-wrap:wrap;
+        ">
+          <button id="backSites" type="button">
+            ← Sites
+          </button>
+
+          ${
+            hasLocation
+              ? `
+                <button id="navigateSite" type="button">
+                  Navigate
+                </button>
+              `
+              : ""
+          }
+        </div>
+      </div>
+
+      ${
+        site.access_notes
+          ? `
+            <div style="
+              margin-top:18px;
+              padding:12px;
+              border-radius:10px;
+              background:#eef3f6;
+            ">
+              <strong>Site Access Notes</strong>
+              <p style="margin-bottom:0;">
+                ${escapeHtml(site.access_notes)}
+              </p>
+            </div>
+          `
+          : ""
+      }
+
+      <div style="
+        display:grid;
+        grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+        gap:10px;
+        margin-top:20px;
+      ">
+        <button type="button" id="workTicketsButton">
+          Work Tickets
+        </button>
+
+        <button type="button" id="inventoryButton">
+          Inventory
+        </button>
+
+        <button type="button" id="packListButton">
+          Pack List
+        </button>
+      </div>
+
+      <hr style="
+        border:0;
+        border-top:1px solid #d7e0e7;
+        margin:24px 0;
+      ">
+
+      <div style="
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        gap:10px;
+        flex-wrap:wrap;
+      ">
+        <div>
+          <h3 style="margin:0;">Equipment</h3>
+          <small>
+            ${equipment?.length || 0}
+            active piece${equipment?.length === 1 ? "" : "s"} of equipment
+          </small>
+        </div>
+
+        <button id="addEquipmentButton" type="button">
+          + Add Equipment
+        </button>
+      </div>
+
+      <div id="siteEquipmentList">
+        ${equipmentList}
+      </div>
+
+      <hr style="
+        border:0;
+        border-top:1px solid #d7e0e7;
+        margin:24px 0;
+      ">
+
+      <div style="
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        gap:10px;
+        flex-wrap:wrap;
+      ">
+        <div>
+          <h3 style="margin:0;">Site Items</h3>
+          <small>
+            Supply trailers, bathrooms, laydowns, connexes and other fixed items
+          </small>
+        </div>
+
+        <button id="addSiteItemButton" type="button">
+          + Add Site Item
+        </button>
+      </div>
+
+      <div id="siteItemsList">
+        ${siteItemsList}
+      </div>
+
     </section>
   `;
 
   document
     .querySelector("#backSites")
     .addEventListener("click", renderSites);
+
+  if (hasLocation) {
+    document
+      .querySelector("#navigateSite")
+      .addEventListener("click", () => {
+        navigateToSite(site.latitude, site.longitude);
+      });
+  }
+
+  document
+    .querySelector("#addEquipmentButton")
+    .addEventListener("click", () => {
+      alert("Add Equipment is the next feature.");
+    });
+
+  document
+    .querySelector("#addSiteItemButton")
+    .addEventListener("click", () => {
+      alert("Add Site Item is coming next.");
+    });
+
+  document
+    .querySelector("#workTicketsButton")
+    .addEventListener("click", () => {
+      alert("Site Work Tickets are coming next.");
+    });
+
+  document
+    .querySelector("#inventoryButton")
+    .addEventListener("click", () => {
+      alert("Site Inventory is coming next.");
+    });
+
+  document
+    .querySelector("#packListButton")
+    .addEventListener("click", () => {
+      alert("Site Pack List is coming next.");
+    });
 };
 
 window.navigateToSite = function(latitude, longitude) {
