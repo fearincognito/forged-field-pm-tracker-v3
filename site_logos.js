@@ -9,11 +9,34 @@
     const style = document.createElement("style");
     style.id = "siteLogoStyles";
     style.textContent = `
-      .site-logo-wrap{display:flex;justify-content:center;align-items:center;min-height:86px;margin:14px 0 12px;padding:8px;border-radius:10px;background:#fff;}
-      .site-logo-img{display:block;max-width:180px;max-height:82px;width:auto;height:auto;object-fit:contain;}
+      .site-card-with-logo{position:relative;}
+      .site-logo-wrap{display:flex;justify-content:center;align-items:center;padding:8px;border-radius:10px;background:#fff;}
+      .site-logo-img{display:block;max-width:200px;max-height:92px;width:auto;height:auto;object-fit:contain;}
       .site-logo-preview{display:block;max-width:220px;max-height:110px;width:auto;height:auto;object-fit:contain;margin:10px auto;border-radius:8px;background:#fff;padding:8px;border:1px solid #d7e0e7;}
       .site-logo-upload-box{margin-top:16px;}
       .site-logo-upload-box input[type=file]{margin-top:8px;}
+
+      @media (min-width:721px){
+        .site-card-with-logo{padding-right:290px !important;min-height:230px;}
+        .site-card-with-logo .site-logo-wrap{
+          position:absolute;
+          right:34px;
+          top:50%;
+          transform:translateY(-50%);
+          width:220px;
+          min-height:110px;
+          margin:0;
+        }
+      }
+
+      @media (max-width:720px){
+        .site-card-with-logo .site-logo-wrap{
+          position:static;
+          width:auto;
+          min-height:86px;
+          margin:14px 0 12px;
+        }
+      }
     `;
     document.head.appendChild(style);
   }
@@ -100,6 +123,7 @@
       const url = publicUrl(path);
       if (!url) return;
 
+      card.classList.add("site-card-with-logo");
       const wrap = document.createElement("div");
       wrap.className = "site-logo-wrap";
       wrap.innerHTML = `<img class="site-logo-img" alt="Customer company logo">`;
