@@ -2,6 +2,7 @@
 (function () {
   let dashboardMap = null;
   let leafletPromise = null;
+  const layerPreferenceKey = "forged-dashboard-map-layer";
 
   function installStyles() {
     if (document.querySelector("#dashboardSitesMapStyles")) return;
@@ -29,6 +30,8 @@
       .site-map-popup-status{margin:4px 0 8px;font-size:12px;}
       .site-map-popup-actions{display:flex;gap:6px;flex-wrap:wrap;}
       .site-map-popup-actions button,.site-map-popup-actions a{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:7px;padding:7px 9px;background:#2b6f9d;color:#fff;text-decoration:none;font:inherit;font-size:12px;font-weight:700;cursor:pointer;}
+      .dashboard-sites-map-card .leaflet-control-layers{border-radius:8px;box-shadow:0 1px 5px rgba(0,0,0,.28);}
+      .dashboard-sites-map-card .leaflet-control-layers-expanded{padding:7px 9px;font-size:12px;}
       @media(max-width:650px){
         .dashboard-sites-map-card{padding:14px;}
         #dashboardSitesMap{height:265px;}
@@ -180,10 +183,34 @@
       }
 
       dashboardMap = L.map(host, { scrollWheelZoom: false, tap: true });
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+
+      const streetLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution: "&copy; OpenStreetMap contributors"
-      }).addTo(dashboardMap);
+      });
+      const satelliteLayer = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+        maxZoom: 19,
+        attribution: "Tiles &copy; Esri"
+      });
+
+      let preferredLayer = "Street";
+      try {
+        const saved = localStorage.getItem(layerPreferenceKey);
+        if (saved === "Satellite") preferredLayer = saved;
+      } catch (_) {}
+
+      if (preferredLayer === "Satellite") satelliteLayer.addTo(dashboardMap);
+      else streetLayer.addTo(dashboardMap);
+
+      L.control.layers(
+        { Street: streetLayer, Satellite: satelliteLayer },
+        null,
+        { position: "topright", collapsed: window.matchMedia("(max-width:650px)").matches }
+      ).addTo(dashboardMap);
+
+      dashboardMap.on("baselayerchange", event => {
+        try { localStorage.setItem(layerPreferenceKey, event.name); } catch (_) {}
+      });
 
       const bounds = [];
       mapped.forEach(site => {
