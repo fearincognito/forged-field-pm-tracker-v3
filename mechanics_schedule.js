@@ -109,7 +109,9 @@
       .on-duty-contact{min-width:0;}
       .on-duty-contact strong{display:block;}
       .on-duty-contact a,.on-duty-contact span{display:block;margin-top:2px;font-size:13px;color:#5f6f7b;text-decoration:none;}
-      .on-duty-call{flex:0 0 auto;min-width:88px;text-align:center;}
+      .on-duty-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end;}
+      .on-duty-action{flex:0 0 auto;min-width:88px;text-align:center;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;}
+      .on-duty-facetime{min-width:132px;}
       .on-duty-empty{margin:0;color:#667785;}
       .schedule-legend{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px;}
       .schedule-legend span{display:inline-flex;align-items:center;gap:6px;font-size:12px;}
@@ -141,11 +143,14 @@
         .mechanics-schedule-toolbar{display:grid;grid-template-columns:1fr 1fr;}
         .mechanics-schedule-toolbar button{min-width:0;width:100%;}
         .schedule-blocks{grid-template-columns:1fr 1fr;}
-        .on-duty-person{align-items:stretch;}
-        .on-duty-call{display:flex;align-items:center;justify-content:center;}
+        .on-duty-person{align-items:stretch;flex-direction:column;}
+        .on-duty-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;}
+        .on-duty-action,.on-duty-facetime{min-width:0;width:100%;}
       }
       @media (max-width:420px){
         .schedule-blocks{grid-template-columns:1fr;}
+        .on-duty-actions{grid-template-columns:1fr 1fr;}
+        .on-duty-facetime{grid-column:1/-1;}
       }
     `;
     document.head.appendChild(style);
@@ -212,7 +217,12 @@
               ? `<a href="tel:${escapeHtml(phoneHref)}">${escapeHtml(phone)}</a>`
               : '<span>Phone number not added yet</span>'}
           </div>
-          ${phone ? `<a class="on-duty-call button" href="tel:${escapeHtml(phoneHref)}">📞 Call</a>` : ""}
+          ${phone ? `
+            <div class="on-duty-actions">
+              <a class="on-duty-action button" href="tel:${escapeHtml(phoneHref)}">📞 Call</a>
+              <a class="on-duty-action button" href="sms:${escapeHtml(phoneHref)}">💬 SMS</a>
+              <a class="on-duty-action on-duty-facetime button" href="facetime-audio:${escapeHtml(phoneHref)}">🎧 FaceTime Audio</a>
+            </div>` : ""}
         </div>`;
     }).join("");
   }
