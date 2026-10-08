@@ -493,3 +493,14 @@ Modules: `fleet_reference.js` loads last, preserving all existing wrappers. `equ
 Verification completed: database comparison of all 277 source JSON records and 198 photo base64 hashes (zero mismatches); mechanic/viewer/anonymous permissions; rollback-only unique-source insert check; existing equipment meters/sites/photos preserved. DOM integration tests load the complete production script order and exercise R602 autofill/photo save, source-hours separation, TSU411 existing match, renumbering, duplicate identifiers, ambiguous matches, failed photo loading, manual reset, and original-detail rendering. Browser visual/iPhone verification remains for the owner: refresh → Nev Gold → Add Equipment → search R602 → select → review.
 
 Test command (Node 24.15+): `npm ci` then `npm run test:fleet -- /absolute/path/to/Forged-equipment-reference-COMPLETE-A01-YT07.json`. The private collected file remains separate from the repository. Frontend has no new runtime dependencies.
+
+
+## 26. Discard equipment added by mistake (2026-10-08)
+
+Equipment detail now has **Remove Added by Mistake** for Owner/Admin/Mechanic. One confirmation identifies the unit and explains permanent removal of entered hours, notes, setup, filters/PM schedules and the copied primary photo. The private immutable fleet reference remains unchanged, and deleting the operational link allows selecting that fleet record afresh. Unsaved additions can still be cancelled normally.
+
+Equipment with service history or any work ticket has a disabled removal button and guidance to Move/Archive. Backend `service_history` and `work_tickets` equipment foreign keys now use ON DELETE RESTRICT, preventing history loss including concurrent additions. Existing filter/PM schedule cascades remove setup records on an eligible deletion. DELETE RLS requires an active maintainer and accessible site; operator/viewer cannot delete equipment.
+
+Module: `equipment_mistake_removal.js`, loaded after fleet reference. Schema reference: `sql/equipment_mistake_removal.sql`; applied migration: `equipment_mistake_removal`. After DB deletion the private primary photo is removed using the Storage API. Failed photo cleanup presents **Retry Photo Cleanup** without recreating the equipment or keeping entered DB values. No equipment is automatically deleted by deployment.
+
+Verified: DOM confirmation cancellation, removal and return to site, source retention, ticket protection, operator visibility; rollback-only database cascade cleanup, service-history protection, mechanic delete permissions; security advisor showed no new removal-related warning. Existing live equipment remains intact. Owner test: open accidentally added equipment → Remove Added by Mistake → confirm → select the same fleet unit again and check that only source details prefill.

@@ -23,14 +23,14 @@ function setupMock(){
     function from(table){
       const query={filters:[],op:'select',values:null,one:false,
         select(){return this;},eq(k,v){this.filters.push([k,v]);return this;},order(){return this;},limit(){return this;},gte(){return this;},not(){return this;},in(){return this;},
-        single(){this.one=true;return this;},maybeSingle(){this.one=true;return this;},insert(values){this.op='insert';this.values=values;return this;},update(values){this.op='update';this.values=values;return this;},
+        single(){this.one=true;return this;},maybeSingle(){this.one=true;return this;},insert(values){this.op='insert';this.values=values;return this;},update(values){this.op='update';this.values=values;return this;},delete(){this.op='delete';return this;},
         then(resolve,reject){return this.run().then(resolve,reject);},
         async run(){const fixture=await window.fixturePromise;
-          let rows=table==='fleet_reference'?fixture.records:table==='fleet_reference_photos'?Object.entries(fixture.photos).map(([reference_id,photos])=>({reference_id,photos})):table==='equipment'?window.testEquipment:[];
+          let rows=table==='fleet_reference'?fixture.records:table==='fleet_reference_photos'?Object.entries(fixture.photos).map(([reference_id,photos])=>({reference_id,photos})):table==='equipment'?window.testEquipment:table==='work_tickets'?(window.testTickets||[]):[];
           if(window.testFailPhotos && table==='fleet_reference_photos')return {data:null,error:{message:'Photo connection failed'}};
           if(window.testFailCatalog && table==='fleet_reference')return {data:null,error:{message:'Catalog connection failed'}};
           if(this.op==='insert'){const row={id:'new-equipment',...this.values};window.testWrites.push({table,values:this.values});window.testEquipment.push(row);rows=[row];}
-          else{rows=rows.filter(r=>this.filters.every(([k,v])=>r[k]===v));if(this.op==='update'){window.testWrites.push({table,values:this.values});rows.forEach(r=>Object.assign(r,this.values));}}
+          else{rows=rows.filter(r=>this.filters.every(([k,v])=>r[k]===v));if(this.op==='delete'){window.testEquipment=window.testEquipment.filter(r=>!rows.includes(r));window.testWrites.push({table,deleted:rows.map(r=>r.id)});}if(this.op==='update'){window.testWrites.push({table,values:this.values});rows.forEach(r=>Object.assign(r,this.values));}}
           return {data:this.one?rows[0]||null:rows,error:null};
         }
       };return query;
@@ -79,7 +79,18 @@ async function form(){w.showAddEquipmentForm('selected-site');await wait(()=>get
  assert.ok(d.body.textContent.includes('Original fleet details — TSU411'));
  assert.ok(d.body.textContent.includes('13750'));
  assert.ok(d.body.textContent.includes('13794'));
+ // Mistake removal discards saved values, while source records remain unchanged.
+ await realOpen('new-equipment','selected-site');
+ assert.ok(get('removeMistakenEquipment'));w.confirm=()=>false;
+ get('removeMistakenEquipment').click();assert.ok(w.testEquipment.some(r=>r.id==='new-equipment'));
+ w.confirm=()=>true;w.openSite=async siteId=>{w.returnedSite=siteId;};
+ get('removeMistakenEquipment').click();await wait(()=>w.returnedSite==='selected-site');
+ assert.equal(w.testEquipment.some(r=>r.id==='new-equipment'),false);assert.equal(records.length,277);
+ w.testTickets=[{id:'ticket',equipment_id:'existing-tsu411'}];await realOpen('existing-tsu411','original-site');
+ assert.equal(get('removeMistakenEquipment').disabled,true);
+ assert.ok(d.body.textContent.includes('Use Move Equipment or Archive Equipment'));
+ w.eval("currentProfile.role='operator'");await realOpen('existing-tsu411','original-site');assert.equal(get('removeMistakenEquipment'),null);
  assert.deepEqual(errors,[]);
- process.stdout.write('PASS: production script load; 277 choices; search; R602 autofill and photo save; current hours; TSU411 preservation; renumbering; duplicate source IDs; ambiguous match; photo failure; manual reset; role visibility.\n');
+ process.stdout.write('PASS: production script load; 277 choices; search; R602 autofill and photo save; current hours; TSU411 preservation; renumbering; duplicate source IDs; ambiguous match; photo failure; manual reset; role visibility; mistake removal; confirmation cancel; ticket protection.\n');
  dom.window.close();
 })().catch(e=>{process.stderr.write(e.stack+'\n');dom.window.close();process.exitCode=1;});
