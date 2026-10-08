@@ -178,6 +178,7 @@ window.openEquipment = async function(equipmentId, siteId) {
                   ${estimated ? `<br><small>Estimated: ${escapeHtml(estimated)}</small>` : ""}
                 </div>
               </div>
+              ${currentProfile && ["owner", "admin", "mechanic"].includes(currentProfile.role) ? `<button type="button" class="secondary-button deletePmSchedule" data-id="${escapeHtml(schedule.id)}" data-name="${escapeHtml(schedule.service_name)}" style="margin-top:10px;">Delete PM Schedule</button><p class="pmDeleteStatus" role="status"></p>` : ""}
             </article>`;
         }).join("")
       : `<div class="empty-state"><strong>No preventive maintenance schedules yet.</strong></div>`;
@@ -280,6 +281,23 @@ window.openEquipment = async function(equipmentId, siteId) {
   document.querySelector("#addPmScheduleButton").addEventListener("click", () => showPmScheduleForm(machine, siteId));
   document.querySelector("#addFilterButton").addEventListener("click", () => showEquipmentFilterForm(machine, siteId));
   document.querySelector("#recordServiceButton").addEventListener("click", () => showServiceForm(machine, siteId, schedules || []));
+  document.querySelectorAll(".deletePmSchedule").forEach(button => {
+    button.addEventListener("click", async () => {
+      if (!window.confirm(`Delete the PM schedule “${button.dataset.name}” entered by mistake?\n\nThis removes its interval and due-hour setup. Completed service history and current equipment hours will be kept.`)) return;
+      button.disabled = true;
+      const status = button.parentElement.querySelector(".pmDeleteStatus");
+      status.textContent = "Deleting schedule…";
+      const {data: rows, error} = await db.from("pm_schedules").delete()
+        .eq("id", button.dataset.id).eq("equipment_id", equipmentId).select("id");
+      if (error || !rows?.length) {
+        status.textContent = error?.message || "Schedule was not deleted. Refresh the page and check your access.";
+        status.classList.add("error-text");
+        button.disabled = false;
+        return;
+      }
+      await window.openEquipment(equipmentId, siteId);
+    });
+  });
 };
 
 function showPmScheduleForm(machine, siteId) {

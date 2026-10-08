@@ -26,11 +26,11 @@ function setupMock(){
         single(){this.one=true;return this;},maybeSingle(){this.one=true;return this;},insert(values){this.op='insert';this.values=values;return this;},update(values){this.op='update';this.values=values;return this;},delete(){this.op='delete';return this;},
         then(resolve,reject){return this.run().then(resolve,reject);},
         async run(){const fixture=await window.fixturePromise;
-          let rows=table==='fleet_reference'?fixture.records:table==='fleet_reference_photos'?Object.entries(fixture.photos).map(([reference_id,photos])=>({reference_id,photos})):table==='equipment'?window.testEquipment:table==='work_tickets'?(window.testTickets||[]):[];
+          let rows=table==='fleet_reference'?fixture.records:table==='fleet_reference_photos'?Object.entries(fixture.photos).map(([reference_id,photos])=>({reference_id,photos})):table==='equipment'?window.testEquipment:table==='work_tickets'?(window.testTickets||[]):table==='pm_schedules'?(window.testSchedules||[]):[];
           if(window.testFailPhotos && table==='fleet_reference_photos')return {data:null,error:{message:'Photo connection failed'}};
           if(window.testFailCatalog && table==='fleet_reference')return {data:null,error:{message:'Catalog connection failed'}};
           if(this.op==='insert'){const row={id:'new-equipment',...this.values};window.testWrites.push({table,values:this.values});window.testEquipment.push(row);rows=[row];}
-          else{rows=rows.filter(r=>this.filters.every(([k,v])=>r[k]===v));if(this.op==='delete'){window.testEquipment=window.testEquipment.filter(r=>!rows.includes(r));window.testWrites.push({table,deleted:rows.map(r=>r.id)});}if(this.op==='update'){window.testWrites.push({table,values:this.values});rows.forEach(r=>Object.assign(r,this.values));}}
+          else{rows=rows.filter(r=>this.filters.every(([k,v])=>r[k]===v));if(this.op==='delete'){if(table==='equipment')window.testEquipment=window.testEquipment.filter(r=>!rows.includes(r));if(table==='pm_schedules')window.testSchedules=window.testSchedules.filter(r=>!rows.includes(r));window.testWrites.push({table,deleted:rows.map(r=>r.id)});}if(this.op==='update'){window.testWrites.push({table,values:this.values});rows.forEach(r=>Object.assign(r,this.values));}}
           return {data:this.one?rows[0]||null:rows,error:null};
         }
       };return query;
@@ -90,7 +90,14 @@ async function form(){w.showAddEquipmentForm('selected-site');await wait(()=>get
  assert.equal(get('removeMistakenEquipment').disabled,true);
  assert.ok(d.body.textContent.includes('Use Move Equipment or Archive Equipment'));
  w.eval("currentProfile.role='operator'");await realOpen('existing-tsu411','original-site');assert.equal(get('removeMistakenEquipment'),null);
+ w.eval("currentProfile.role='mechanic'");
+ w.testSchedules=[{id:'wrong-pm',equipment_id:'existing-tsu411',active:true,service_name:'Wrong Interval',interval_hours:999,last_service_hours:13000,next_due_hours:13999}];
+ await realOpen('existing-tsu411','original-site');assert.ok(d.querySelector('.deletePmSchedule'));
+ w.confirm=()=>false;d.querySelector('.deletePmSchedule').click();assert.equal(w.testSchedules.length,1);
+ w.confirm=()=>true;w.openEquipment=realOpen;d.querySelector('.deletePmSchedule').click();await wait(()=>w.testSchedules.length===0);
+ await wait(()=>!d.querySelector('.deletePmSchedule'));assert.equal(w.testEquipment.find(r=>r.id==='existing-tsu411').current_hours,13794);
+ w.eval("currentProfile.role='operator'");w.testSchedules=[{id:'other-pm',equipment_id:'existing-tsu411',active:true,service_name:'Kept',interval_hours:250}];await realOpen('existing-tsu411','original-site');assert.equal(d.querySelector('.deletePmSchedule'),null);
  assert.deepEqual(errors,[]);
- process.stdout.write('PASS: production script load; 277 choices; search; R602 autofill and photo save; current hours; TSU411 preservation; renumbering; duplicate source IDs; ambiguous match; photo failure; manual reset; role visibility; mistake removal; confirmation cancel; ticket protection.\n');
+ process.stdout.write('PASS: production script load; 277 choices; search; R602 autofill and photo save; current hours; TSU411 preservation; renumbering; duplicate source IDs; ambiguous match; photo failure; manual reset; role visibility; mistake removal; confirmation cancel; ticket protection; PM schedule deletion and cancellation.\n');
  dom.window.close();
 })().catch(e=>{process.stderr.write(e.stack+'\n');dom.window.close();process.exitCode=1;});

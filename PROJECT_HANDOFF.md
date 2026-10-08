@@ -504,3 +504,12 @@ Equipment with service history or any work ticket has a disabled removal button 
 Module: `equipment_mistake_removal.js`, loaded after fleet reference. Schema reference: `sql/equipment_mistake_removal.sql`; applied migration: `equipment_mistake_removal`. After DB deletion the private primary photo is removed using the Storage API. Failed photo cleanup presents **Retry Photo Cleanup** without recreating the equipment or keeping entered DB values. No equipment is automatically deleted by deployment.
 
 Verified: DOM confirmation cancellation, removal and return to site, source retention, ticket protection, operator visibility; rollback-only database cascade cleanup, service-history protection, mechanic delete permissions; security advisor showed no new removal-related warning. Existing live equipment remains intact. Owner test: open accidentally added equipment → Remove Added by Mistake → confirm → select the same fleet unit again and check that only source details prefill.
+
+
+## 27. Delete a mistaken PM schedule (2026-10-08)
+
+Each active PM schedule card now offers **Delete PM Schedule** to Owner/Admin/Mechanic. Confirmation names the schedule and explains that its interval/due-hour setup is removed while completed service history and current equipment hours are retained. Successful deletion refreshes the equipment page and due calculations.
+
+`pm.js` renders/wires the action. `sql/pm_schedule_delete.sql` records migration `pm_schedule_mistake_delete`: DELETE RLS matches existing maintenance access through `can_work_at_site`. Operator/Viewer do not get the action or backend deletion permission. The existing service-history FK uses ON DELETE SET NULL, preserving all completed service fields if their schedule is removed. No live schedule was deleted by implementation or verification.
+
+Verified: rollback-only mechanic delete with linked completed service (retained with null schedule link) and unchanged equipment hours; DOM delete/cancel/role checks alongside fleet/removal regression suite. Owner test: refresh → open equipment → find the incorrect schedule → Delete PM Schedule → confirm.
