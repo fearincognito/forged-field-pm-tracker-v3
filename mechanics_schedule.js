@@ -1,9 +1,9 @@
 /* Mechanics schedule dashboard view for October and November 2026. */
 (function () {
   const mechanicContacts = {
-    "Harley Niedzielski": "",
-    "Josh Wiome": "",
-    "Ryker Thacyk": ""
+    "Harley Niedzielski": "+1 (775) 421-9494",
+    "Josh Wiome": "+1 (306) 533-7720",
+    "Ryker Thacyk": "+1 (639) 280-7224"
   };
 
   const schedule = {
