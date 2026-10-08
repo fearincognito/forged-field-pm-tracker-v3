@@ -288,7 +288,8 @@
     const rows = Object.values(grouped).sort((a,b) => a.part_number.localeCompare(b.part_number));
     const html = rows.length ? rows.map(row => {
       const onSite = inventoryByPart[row.part_number.toUpperCase()] || 0;
-      const bring = Math.max(row.required - onSite, 0);
+      const backupMinimum = onSite === 1 ? 1 : 0;
+      const bring = Math.max(row.required - onSite, backupMinimum);
       return `
         <article class="inset-card compact-card" style="margin-top:10px;${bring > 0 ? "border-left:5px solid #d96b00;background:#fff4e5;" : ""}">
           <div class="section-heading">
@@ -301,6 +302,7 @@
               <small>Required</small> <strong>${escapeHtml(row.required)}</strong><br>
               <small>On Site</small> <strong>${escapeHtml(onSite)}</strong><br>
               <small>Bring</small> <strong style="${bring > 0 ? "color:#b54708;" : ""}">${escapeHtml(bring)}</strong>
+              ${backupMinimum ? '<br><small>Bring at least 1 backup — only 1 on site.</small>' : ""}
             </div>
           </div>
         </article>`;
@@ -318,7 +320,7 @@
           </div>
         </div>
         <p><small><strong>Selected equipment:</strong> ${escapeHtml(selectedNames)}</small></p>
-        <p><small>Required quantities are consolidated only across the selected equipment. Site inventory is then subtracted so Bring shows what still needs to be packed.</small></p>
+        <p><small>Required quantities are consolidated across the selected equipment, then site inventory is subtracted. When only 1 of a part is on site, Bring is at least 1 so you take a backup.</small></p>
         <div>${html}</div>
       </section>`;
 

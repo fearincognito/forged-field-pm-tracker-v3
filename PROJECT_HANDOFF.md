@@ -513,3 +513,10 @@ Each active PM schedule card now offers **Delete PM Schedule** to Owner/Admin/Me
 `pm.js` renders/wires the action. `sql/pm_schedule_delete.sql` records migration `pm_schedule_mistake_delete`: DELETE RLS matches existing maintenance access through `can_work_at_site`. Operator/Viewer do not get the action or backend deletion permission. The existing service-history FK uses ON DELETE SET NULL, preserving all completed service fields if their schedule is removed. No live schedule was deleted by implementation or verification.
 
 Verified: rollback-only mechanic delete with linked completed service (retained with null schedule link) and unchanged equipment hours; DOM delete/cancel/role checks alongside fleet/removal regression suite. Owner test: refresh → open equipment → find the incorrect schedule → Delete PM Schedule → confirm.
+
+
+## 28. One-stock backup rule for pack lists (2026-10-08)
+
+All existing pack-list modes (selected equipment and full site) share the builder in `site_inventory.js`. After consolidating site inventory by part number, a part with exactly **1 On Site** now has **Bring at least 1** for a backup. Bring remains the larger of the actual shortage and this one-unit minimum. Example: Required 1 / On Site 1 → Bring 1; Required 3 / On Site 1 → Bring 2. With zero or two-plus on site, existing shortage calculation remains unchanged. Inventory quantities are not modified by generating a pack list.
+
+Affected rows show **Bring at least 1 backup — only 1 on site** and the pack-list explanation describes the rule. `npm run test:pack` checks selected/full-site modes, one-stock backup, shortages, sufficient stock, and consolidated duplicate inventory rows using the actual rendered pack-list workflow.
