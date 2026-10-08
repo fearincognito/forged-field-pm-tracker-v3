@@ -10,31 +10,29 @@
     style.id = "siteRotationStripStyles";
     style.textContent = `
       .site-rotation-info-column{flex:1 1 auto;min-width:0;}
-      .site-rotation-row{display:flex;align-items:flex-end;gap:18px;margin-top:14px;max-width:980px;}
-      .site-rotation-summary{flex:0 0 auto;min-width:190px;padding-bottom:8px;}
-      .site-rotation-calendar{flex:1 1 620px;min-width:0;max-width:760px;border:1px solid #d6e0e7;border-radius:12px;background:#f8fafb;padding:9px 10px 8px;}
-      .site-rotation-calendar-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:7px;}
-      .site-rotation-month{font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#314250;}
-      .site-rotation-today-status{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;padding:4px 8px;border-radius:999px;white-space:nowrap;}
+      .site-rotation-row{display:flex;align-items:center;gap:18px;margin-top:10px;max-width:980px;}
+      .site-rotation-summary{flex:0 0 auto;min-width:190px;}
+      .site-rotation-calendar{flex:1 1 620px;min-width:0;max-width:760px;border:1px solid #d6e0e7;border-radius:9px;background:#f8fafb;padding:5px 8px 6px;}
+      .site-rotation-calendar-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px;min-height:20px;}
+      .site-rotation-month{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#314250;}
+      .site-rotation-today-status{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;white-space:nowrap;}
       .site-rotation-today-status.on{background:#dff4e5;color:#176337;}
       .site-rotation-today-status.off{background:#fde6e3;color:#972b21;}
-      .site-rotation-days{display:flex;gap:4px;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;padding:3px 2px 6px;scrollbar-width:thin;scroll-snap-type:x proximity;}
-      .site-rotation-day{position:relative;flex:0 0 43px;min-height:48px;border-radius:8px;border:1px solid transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;scroll-snap-align:center;}
-      .site-rotation-day .dow{font-size:9px;font-weight:800;text-transform:uppercase;opacity:.75;}
-      .site-rotation-day .dom{font-size:16px;font-weight:900;margin-top:3px;}
-      .site-rotation-day.on{background:#dff4e5;border-color:#7ec595;color:#155b33;}
-      .site-rotation-day.off{background:#fde6e3;border-color:#df8e86;color:#8e2a21;}
-      .site-rotation-day.today{box-shadow:0 0 0 3px #1f2d3a;z-index:1;}
-      .site-rotation-day.today::after{content:"TODAY";position:absolute;left:50%;top:-11px;transform:translateX(-50%);font-size:7px;font-weight:900;letter-spacing:.04em;background:#1f2d3a;color:#fff;border-radius:4px;padding:2px 4px;}
-      .site-rotation-anchor-warning{font-size:12px;color:#667785;padding:8px 4px 5px;}
+      .site-rotation-days{display:flex;gap:2px;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;padding:1px 1px 2px;scrollbar-width:none;scroll-snap-type:x proximity;}
+      .site-rotation-days::-webkit-scrollbar{display:none;}
+      .site-rotation-day{position:relative;flex:1 0 12px;min-width:12px;height:8px;border-radius:3px;border:1px solid transparent;scroll-snap-align:center;}
+      .site-rotation-day.on{background:#58a96d;border-color:#3f8e55;}
+      .site-rotation-day.off{background:#d55b50;border-color:#b8453b;}
+      .site-rotation-day.today{height:12px;margin-top:-2px;box-shadow:0 0 0 2px #1f2d3a;z-index:1;}
+      .site-rotation-anchor-warning{font-size:11px;color:#667785;padding:2px 2px 1px;}
       @media (max-width:850px){
         .site-rotation-row{display:block;max-width:none;}
-        .site-rotation-summary{min-width:0;padding-bottom:0;margin-bottom:10px;}
+        .site-rotation-summary{min-width:0;margin-bottom:6px;}
         .site-rotation-calendar{max-width:none;width:100%;box-sizing:border-box;}
       }
       @media (max-width:520px){
-        .site-rotation-calendar-top{align-items:flex-start;flex-direction:column;gap:5px;}
-        .site-rotation-day{flex-basis:44px;}
+        .site-rotation-calendar-top{gap:6px;}
+        .site-rotation-day{flex:0 0 12px;}
       }
     `;
 
@@ -71,6 +69,10 @@
     return phase < rotation.on ? "on" : "off";
   }
 
+  function stateLabel(state) {
+    return state === "on" ? "Drilling" : "Shut Down";
+  }
+
   function dateKey(date) {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   }
@@ -93,7 +95,7 @@
         <div class="site-rotation-calendar-top">
           <span class="site-rotation-month">${escapeHtml(monthLabel)}</span>
         </div>
-        <div class="site-rotation-anchor-warning">Set a Rotation Anchor Date in Edit Site to activate the live ON/OFF calendar.</div>`;
+        <div class="site-rotation-anchor-warning">Set a Rotation Anchor Date in Edit Site to activate the live drilling/shut down strip.</div>`;
       return;
     }
 
@@ -102,22 +104,18 @@
       const day = index + 1;
       const state = dayState(site, year, monthIndex, day);
       const date = new Date(year, monthIndex, day);
-      const dow = date.toLocaleDateString(undefined, { weekday: "short" }).slice(0, 3);
+      const dayLabel = date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
       const isToday = day === today;
-      return `
-        <div class="site-rotation-day ${state || ""} ${isToday ? "today" : ""}" title="${escapeHtml(`${dow} ${day} — ${state === "on" ? "ON" : "OFF"}`)}">
-          <span class="dow">${escapeHtml(dow)}</span>
-          <span class="dom">${day}</span>
-        </div>`;
+      return `<div class="site-rotation-day ${state || ""} ${isToday ? "today" : ""}" title="${escapeHtml(`${dayLabel} — ${stateLabel(state)}`)}" aria-label="${escapeHtml(`${dayLabel} — ${stateLabel(state)}${isToday ? ", today" : ""}`)}"></div>`;
     }).join("");
 
     calendar.dataset.currentDate = dateKey(now);
     calendar.innerHTML = `
       <div class="site-rotation-calendar-top">
         <span class="site-rotation-month">${escapeHtml(monthLabel)}</span>
-        <span class="site-rotation-today-status ${todayState}">Today: ${todayState === "on" ? "ON" : "OFF"}</span>
+        <span class="site-rotation-today-status ${todayState}">Today: ${escapeHtml(stateLabel(todayState))}</span>
       </div>
-      <div class="site-rotation-days" aria-label="${escapeHtml(monthLabel)} site rotation calendar">${days}</div>`;
+      <div class="site-rotation-days" aria-label="${escapeHtml(monthLabel)} site rotation strip">${days}</div>`;
 
     requestAnimationFrame(() => {
       const scroller = calendar.querySelector(".site-rotation-days");
