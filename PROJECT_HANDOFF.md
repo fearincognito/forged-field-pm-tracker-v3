@@ -2,101 +2,88 @@
 
 _Last updated: 2026-10-07 (America/Los_Angeles)_
 
-This file is the continuity document for the Forged Field PM Tracker V3 project. Read this first when returning to the project after a break or when a new ChatGPT session needs to continue development.
+This is the living continuity document for Forged Field PM Tracker V3. Read it first when returning to the project after a break or when a new ChatGPT session needs to continue development.
 
 ## 1. Project purpose
 
-Forged Field PM Tracker V3 is a field-maintenance web app for drilling operations. It is being designed around how mechanics actually work in the field: company dashboard → job sites → equipment / site items → maintenance, work tickets, inventory, service history, GPS, schedules, and access controls.
+Forged Field PM Tracker V3 is a field-maintenance web app for drilling operations. The workflow is built around how mechanics actually work in the field:
 
-The owner describes the desired workflow and tests the live site. ChatGPT handles the GitHub/Supabase implementation directly whenever possible. The owner should not be asked to edit code manually.
+Company Dashboard → Job Sites → Equipment / Site Items → PM / Service / Work Tickets / Inventory / GPS / History / Access Controls.
 
-## 2. Critical rule: do not touch V2
+The owner describes the desired workflow and tests the live site. ChatGPT handles GitHub/Supabase implementation directly whenever possible. Do not ask the owner to edit code manually.
 
-V2 must remain completely untouched.
+## 2. Critical rule: V2 stays untouched
 
-- V3 repository: `fearincognito/forged-field-pm-tracker-v3`
+- V3 repo: `fearincognito/forged-field-pm-tracker-v3`
 - V3 live site: `https://fearincognito.github.io/forged-field-pm-tracker-v3/`
-- V2 repository: `fearincognito/-field-pm-tracker`
+- V2 repo: `fearincognito/-field-pm-tracker`
 - V2 live site: `https://fearincognito.github.io/-field-pm-tracker/`
 
-All development described in this file is V3 only.
+Never modify V2.
 
-## 3. Technology / architecture
+## 3. Architecture and security
 
-- Frontend: static HTML/CSS/JavaScript hosted by GitHub Pages.
-- Database/auth/storage: Supabase.
+- Frontend: static HTML/CSS/JavaScript on GitHub Pages.
+- Backend/auth/storage: Supabase.
 - Supabase project ID: `eaehrhqsqmlcjcuzeyoh`
-- Supabase region: `us-west-2`
-- Supabase URL: `https://eaehrhqsqmlcjcuzeyoh.supabase.co`
-- The browser uses a Supabase publishable key under RLS.
-- Never put a service-role key, database password, user password, or other secret into this repository or this handoff.
+- Region: `us-west-2`
+- URL: `https://eaehrhqsqmlcjcuzeyoh.supabase.co`
+- Browser uses a public Supabase publishable key protected by RLS.
 
-The frontend is intentionally modular. Many JS files wrap existing global functions such as `renderDashboard`, `openSite`, and `openEquipment`. Preserve wrapper chains and script load order when adding features.
+Never place service-role keys, database passwords, user passwords, generated demo credentials, private API keys, auth tokens, or personal phone numbers in this file or the repo.
+
+The frontend is modular. Several files wrap globals such as `renderDashboard`, `openSite`, and `openEquipment`. Preserve wrapper chains and script order.
 
 ### Development rule
 
-Always fetch the current GitHub version of a file immediately before updating it. Do not rely on an old SHA from this document or a prior chat summary.
+Always fetch the current GitHub version of any file immediately before updating it. Do not rely on old SHAs from this document or a prior chat.
 
-## 4. Working style / UX direction
+## 4. UX / working style
 
-Keep the app practical and mechanic-friendly:
+Keep the app practical and field-friendly:
 
-- clean, simple controls
-- mobile-first behavior for field use
-- obvious Back / Cancel navigation
-- large enough touch targets
-- no unnecessary data clutter
-- hide empty equipment details while keeping fields available in edit forms
-- use drilling/mechanic terminology rather than generic software language
-- test changes in small, concrete steps: refresh → open the feature → say worked / did not work
+- mobile-first
+- simple, mechanic-friendly wording
+- obvious Back / Cancel controls
+- large touch targets
+- minimal clutter
+- hide empty equipment details while keeping fields in edit forms
+- direct changes in GitHub/Supabase, then simple user testing
+- typical test flow: refresh → open feature → worked / did not work
 
-The owner commonly tests in desktop Firefox and on iPhone.
+Primary test environments are desktop Firefox and iPhone.
 
-## 5. Main product hierarchy
-
-Company Dashboard
-→ Job Sites
-→ Equipment / Site Items
-→ Equipment Details / Work Tickets / PM / Service / Inventory / GPS
+## 5. Main site/equipment workflow
 
 ### Job Sites
 
 Sites support:
 
-- location and access notes
+- location / access notes
 - saved GPS and navigation
-- rotations: 14/7, 20/10, and custom
+- rotation types 14/7, 20/10, custom
 - rotation anchor date
-- customer/company logo
-- live drilling/shutdown rotation strip
-- equipment list
+- company/customer logo
+- live Drilling / Shut Down rotation strip
+- equipment
 - site items
-- site inventory
+- inventory
 - pack lists
 - work tickets
 
 ### Site Items
 
-Supported categories include:
+Supported categories include supply trailer, bathroom, laydown, connex/sea can, fuel tank, water tank, storage, and other.
 
-- supply trailer
-- bathroom
-- laydown
-- connex / sea can
-- fuel tank
-- water tank
-- storage
-- other
-
-Supply-trailer detail/edit/GPS/navigation/ticket flow was previously tested successfully.
+Supply Trailer 1 detail/edit/GPS/navigation/ticket flow was previously confirmed working.
 
 ### Equipment
 
 Equipment can contain:
 
-- owned or rental
+- owned / rental
 - unit number / name
-- equipment year
+- year
 - make / model
 - equipment serial
 - engine serial
@@ -106,9 +93,9 @@ Equipment can contain:
 - expected operating hours/day
 - oil type
 - oil capacity + unit
-- filters / service parts
+- filters/service parts
 - notes
-- saved GPS
+- GPS
 - photo
 
 Equipment can move between sites and can be archived/restored rather than hard-deleted.
@@ -123,39 +110,19 @@ Roles:
 - Operator
 - Viewer
 
-### Owner / Admin
+Owner/Admin: account management plus broad operational access. Owner has extra destructive actions such as service-history deletion.
 
-Account administration, invitations, role changes, user enable/disable, and broad operational access. Owner has some additional destructive actions such as service-history deletion.
+Mechanic: operational access across sites, including equipment/site maintenance, filters, site items, inventory, PM/service, work tickets, moves, archive/restore, and site edits. No Users & Access administration.
 
-### Mechanic
+Operator: assigned-site access, read operational information, create/update work tickets, and update **current machine hours only** on assigned sites. Operators cannot edit the rest of the equipment record or move hours backward.
 
-Operational access across all sites. Intended to support equipment/site maintenance work, including equipment edits, filters, site items, inventory, PM/service functions, work tickets, moves, archive/restore, and site edits. Mechanics do not manage Users & Access.
+Viewer: assigned-site read-only.
 
-### Operator
+UI account status wording is **Enabled / Disabled**; underlying DB field remains `active`.
 
-Assigned-site access. Can view site/equipment/maintenance information and create/update work tickets. A narrow permission was added so Operators can update **current machine hours only** on assigned sites. They cannot edit the rest of the equipment record or move hours backward.
+## 7. Supabase high-level model
 
-### Viewer
-
-Assigned-site read-only access.
-
-### Account terminology
-
-The UI uses **Enabled / Disabled** instead of Active / Inactive for account status. The underlying database field is still `active`.
-
-## 7. Supabase data model — high-level
-
-Important enums include:
-
-- `app_role`: owner / admin / mechanic / operator / viewer
-- `equipment_status`: active / rental / out_of_service / archived
-- `ownership_type`: owned / rental
-- `site_item_type`: supply_trailer / bathroom / laydown / connex / fuel_tank / water_tank / storage / other
-- `ticket_status`: open / in_progress / completed / cancelled
-- `ticket_priority`: normal / urgent / equipment_down
-- `audit_action`: created / updated / completed / archived / restored / deleted
-
-Important tables include:
+Important tables:
 
 - profiles
 - sites
@@ -170,7 +137,7 @@ Important tables include:
 - work_ticket_updates
 - audit_log
 
-Important helpers include:
+Important helpers:
 
 - `set_updated_at`
 - `handle_new_user`
@@ -180,206 +147,183 @@ Important helpers include:
 - `is_mechanic_or_above`
 - `can_work_at_site`
 
-RLS is enabled. Preserve backend enforcement when adding UI permissions; do not rely on hiding buttons alone.
+Important enums include app_role, equipment_status, ownership_type, site_item_type, ticket_status, ticket_priority, and audit_action.
 
-## 8. Preventive maintenance model
+RLS is enabled. Preserve backend enforcement; never rely only on hiding UI buttons.
+
+## 8. PM model
 
 PM is hour-meter based; the meter is authoritative.
 
-Existing threshold convention:
+Threshold convention:
 
-- within 50 hours: yellow
-- within 20 hours: orange
-- due / overdue: red
+- within 50 hours = yellow
+- within 20 hours = orange
+- due/overdue = red
 
-Service completion stores the scheduled due point so a late service advances the next due from the intended schedule rather than drifting forever.
+Late service advances from the scheduled due point rather than drifting from the late completion hour.
 
-Historical tests included a 250-hour schedule and verified late-service behavior.
+Expected hours/day combines with site rotation to estimate calendar due date. Decimal values such as 0.5 / 1.5 are supported but still need clean verification.
 
-Expected hours/day can be combined with site rotation to estimate a calendar due date. Custom decimal usage such as 0.5 / 1.5 hours per day is supported, but remains on the test list.
+## 9. Work Tickets
 
-## 9. Work tickets
+Tickets can attach to equipment or site items.
 
-Work tickets can attach to equipment or a site item.
+Statuses: Open / In Progress / Completed / Cancelled.
 
-Typical fields:
+Priorities: Normal / Urgent / Equipment Down.
 
-- What’s Broken?
-- description / context
-- posted by
-- status
-- priority
-- repair / resolution
-- completed by
-- completion date
-- completed equipment hours
-- comments / updates
-
-Statuses:
-
-- Open
-- In Progress
-- Completed
-- Cancelled
-
-Priorities:
-
-- Normal
-- Urgent
-- Equipment Down
-
-Completed equipment hours are prefilled from current machine hours but remain editable. Completing a ticket does **not** automatically update equipment current hours.
+Completed equipment hours prefill from current machine hours but remain editable. Completing a ticket does **not** automatically change equipment current hours.
 
 ## 10. Site inventory and pack lists
 
-Site inventory tracks required quantity, quantity on site, and quantity to bring.
+Inventory tracks Required / On Site / Bring.
 
-The pack-list workflow supports selecting specific equipment before generating the list. All machines are checked by default, with Select All / Clear All. Only selected machines contribute parts. Duplicate part numbers are aggregated and the list shows which machines use each part.
+Pack lists can be generated for selected equipment only. All equipment starts checked, with Select All / Clear All. Duplicate part numbers aggregate quantities and show which machines use each part.
 
-A service workflow was also added so a mechanic can select filters consumed from site inventory while recording service. Selected filters are deducted from inventory and recorded with the service. This still needs careful real-world testing with an intentional service record.
+Service recording also has a workflow to select filters used from site inventory and deduct them automatically. This still needs careful real-world testing with an intentional service record.
 
-## 11. Equipment photos
+## 11. Photos and logos
 
-Equipment photos use the private `equipment-photos` storage bucket and signed URLs.
+### Equipment photos
 
-Implemented behavior includes:
+Private bucket: `equipment-photos`.
+
+Features:
 
 - upload / replace / remove
-- image compression before upload
-- primary photo on equipment detail
-- thumbnails in site equipment lists and Company Equipment
-- click detail image for larger view
+- client image compression
+- detail photo
+- site/company equipment thumbnails
+- click for larger view
 - compact Retake / Replace / Remove controls
 
-Potential remaining edge case: iPhone HEIC / canvas handling should still be tested.
+Remaining edge case: iPhone HEIC/canvas behavior should still be tested.
 
-## 12. Site customer logos
+### Site logos
 
-Site logos use the public `site-logos` bucket.
+Public bucket: `site-logos`.
 
-Implemented:
+Features:
 
-- upload from Add/Edit Site
-- replace/remove from Edit Site
-- logo shown on site cards
-- desktop positioning centered in open space to the right of site information
-- mobile stacking
+- upload in Add/Edit Site
+- replace/remove
+- logo on site cards
+- centered in desktop open space
+- stacked on mobile
 
-## 13. Mechanics Schedule
+## 12. Mechanics Schedule
 
-A Mechanics Schedule card exists on the dashboard with October and November 2026 schedule data currently entered from supplied screenshots.
+Dashboard Mechanics Schedule currently contains October and November 2026 data entered from user screenshots.
 
-Features include:
+Features:
 
-- desktop calendar/table view
+- desktop calendar/table
 - mobile mechanic cards
 - month switching
-- current-day highlighting
-- “Mechanics On Today” section
-- only `Days` counts as on-duty; FI / FO / OFF are excluded
-- Call, SMS, and FaceTime Audio actions for the currently stored mechanic contacts
+- current-day highlight
+- Mechanics On Today section
+- only `Days` counts as on-duty; FI / FO / OFF do not
+- Call / SMS / FaceTime Audio actions
 
-Do not copy personal phone numbers into this handoff. They already exist in the schedule module where required.
+Do not copy mechanic phone numbers into this handoff.
 
-Additional months can be added later from new schedule screenshots.
-
-## 14. Live site rotation strip
+## 13. Live site rotation strip
 
 File: `site_rotation_strip.js`
 
 Current behavior:
 
-- shown beside the Rotation summary on an open Job Site
-- uses rotation type + anchor date
-- green = **Drilling**
-- red = **Shut Down**
-- current month/year at top-left
-- `Today: Drilling` / `Today: Shut Down` pill at top-right
-- no weekday/date numbers in the strip
-- current day has a dark outline
-- current month is represented by compact colored day segments
-- on phones the entire month compresses to fit the screen; no horizontal page swiping is required
-- it updates when the local browser date changes
+- appears beside Rotation on open site
+- green = Drilling
+- red = Shut Down
+- month/year top-left
+- Today status top-right
+- compact colored daily segments
+- no weekday/date labels
+- current day outlined
+- full month compresses to fit phone width with no page-level horizontal scrolling
+- updates when browser date changes
 
-Most recent relevant commit:
+Recent relevant commits:
 
-- `0684f0de9eef9d3bbad0f6ab60255ed8e9153e78` — Fit site rotation strip within phone screen
+- `de0655a2483a72ae74eae6f8cb9f1c125b9fe9e9` — compact strip / renamed statuses
+- `0684f0de9eef9d3bbad0f6ab60255ed8e9153e78` — fit strip to phone screen
 
-The owner confirmed the phone layout works.
+Owner confirmed phone layout works.
 
-## 15. Dashboard Job Sites map
+## 14. Dashboard Job Sites map
 
 File: `dashboard_sites_map.js`
 
-The dashboard now contains a full-width map of active sites with saved GPS coordinates.
+Dashboard contains a full-width map of active sites with saved GPS coordinates.
 
 Behavior:
 
-- all accessible active sites with valid GPS are shown as pins
-- map auto-fits the active site pins
+- auto-fits active site pins
 - green pin = Drilling
 - red pin = Shut Down
-- blue pin = no rotation configured
-- hover labels automatically point inward when a pin is close to a map edge
-- clicking a pin opens a popup with site name/status, Open Site, and Google Maps navigation
-- mobile map height is reduced appropriately
-- selected map layer is remembered in `localStorage`
+- blue pin = no rotation
+- hover labels point inward near map edges
+- pin popup includes site name/status, Open Site, and Google Maps
+- reduced mobile height
+- selected base layer remembered in localStorage
 
-Selectable base layers:
+Selectable layers:
 
 - Street — OpenStreetMap
 - Satellite — Esri World Imagery
 - Terrain — topo/terrain layer
 
-Recent map commits:
+Recent commits:
 
-- `3e75faa92c2d43c9a9f1b135c4836d4c21ae574b` — Add live job sites map to dashboard
-- `ca8706a087c390fffae3cd90dfd4009500dbe5d2` — Keep site map hover labels inside map edges
-- `e3e8850ba734ae5227587d47ab59811d934aef13` — Add selectable satellite layer
-- `2b7e264e56030b9c2d22a07725a72eeb80bbc458` — Add terrain layer
+- `3e75faa92c2d43c9a9f1b135c4836d4c21ae574b` — add dashboard sites map
+- `ca8706a087c390fffae3cd90dfd4009500dbe5d2` — inward hover labels
+- `e3e8850ba734ae5227587d47ab59811d934aef13` — satellite layer
+- `2b7e264e56030b9c2d22a07725a72eeb80bbc458` — terrain layer
 
-## 16. Login / password recovery
+## 15. Login / password recovery
 
 ### Show / Hide password
 
-File: `password_toggle.js`
+File: `password_toggle.js`.
 
-The login password field now has a Show / Hide button inside the field.
+Login password now has a Show / Hide control.
 
 Recent commits:
 
-- `cb4f2b003a6e5b2834bd191a97c5d36e96d6caa3` — Add show-hide password button to login
-- `026152be9f9bbb6dd15b7ba419b7ed7e859db230` — Load login password show-hide control
+- `cb4f2b003a6e5b2834bd191a97c5d36e96d6caa3` — add show/hide control
+- `026152be9f9bbb6dd15b7ba419b7ed7e859db230` — load control
 
 ### Forgot password
 
-File: `password_reset.js`
+File: `password_reset.js`.
 
-A Supabase password-recovery flow exists with new-password confirmation and minimum-length validation. A previous recovery test hit an email rate limit; a clean final end-to-end recovery retest is still desirable.
+Supabase recovery flow exists with new-password confirmation and minimum-length validation. Previous test hit an email rate limit; clean end-to-end retest remains desirable.
 
-## 17. Manual Viewer demo account workflow
+## 16. Manual Viewer demo workflow
 
-Users & Access has an Owner-only workflow to create a manual/shared Viewer login without sending an invitation email.
+Owner-only workflow can create a manual/shared Viewer login without email invitation.
 
-Important rules:
+Rules:
 
 - Viewer only
 - selected current sites only
-- credentials are returned once
-- no passwords should ever be copied into this handoff
-- shared accounts are less auditable and should be disabled after a demo
+- credentials returned once
+- never copy passwords into this handoff
+- disable shared account after demo when appropriate
 
-A backend permission issue during the first attempt was fixed and the partial failed demo account was disabled. A later retry successfully produced credentials, but actual login/read-only behavior still needs confirmation.
+Initial backend permission failure was fixed. Later retry produced credentials, but actual login/read-only behavior still needs confirmation.
 
-## 18. Other implemented modules worth knowing
+## 17. Important frontend modules
 
-These files are important parts of the current V3 build:
+Key current files include:
 
-- `app.js` — core app / base navigation and site/equipment rendering
-- `pm.js` — PM/service functions
+- `app.js`
+- `pm.js`
 - `equipment_edit.js`
-- `equipment_usage.js` — expected operating hours/day
-- `gps_nav.js` — saved GPS / navigation / map preview
+- `equipment_usage.js`
+- `gps_nav.js`
 - `site_edit.js`
 - `site_logos.js`
 - `site_inventory.js`
@@ -414,108 +358,116 @@ These files are important parts of the current V3 build:
 - `password_toggle.js`
 - `invite_setup.js`
 
-Before modifying any of these, fetch the current file first.
+Always fetch the current version before modifying any of them.
 
-## 19. Known successful tests / confirmations
+## 18. Confirmed working / historical tests
 
-Historically confirmed working:
+Confirmed historically:
 
 - Company Equipment fuzzy search
 - equipment archive / restore
-- Supply Trailer 1 detail/edit/GPS/navigation/tickets flow
-- PM threshold behavior and late-service next-due behavior in earlier tests
-- site rotation calculations for 14/7, 20/10, and custom rotations
-- compact phone rotation strip now fits without horizontal page swiping
-- site/company logo positioning was adjusted after screenshot feedback
-- login password Show/Hide was implemented (needs only normal user confirmation after deployment if not already checked)
+- Supply Trailer 1 detail/edit/GPS/navigation/tickets
+- PM thresholds and late-service schedule behavior
+- 14/7, 20/10, and custom rotation calculations
+- phone rotation strip fits without page horizontal scrolling
+- site logo positioning adjusted successfully after screenshot feedback
 
-## 20. Current testing priority / unresolved checks
+## 19. Current testing priority
 
-When resuming, these are the best outstanding items to verify before assuming they are finished:
+Do not assume these are complete until verified:
 
-1. Dashboard map: confirm Street / Satellite / Terrain selector on desktop and phone.
+1. Dashboard map Street / Satellite / Terrain on desktop and phone.
 2. Login Show / Hide password control.
 3. Mechanics Schedule SMS + FaceTime Audio on iPhone.
-4. Manual Viewer actual login and read-only site access.
-5. Service inventory deduction with an intentional real/test service.
-6. Operator Update Hours from an Operator login.
-7. Equipment list/detail photo behavior, especially iPhone HEIC.
+4. Manual Viewer login + read-only site access.
+5. Service inventory deduction with intentional service.
+6. Operator Update Hours using Operator login.
+7. Equipment photos, especially iPhone HEIC.
 8. Saved GPS mini-map preview.
-9. Custom decimal expected equipment operation.
-10. Owner service-history delete and PM rollback behavior.
-11. Oil capacity unit selector/display.
-12. Password recovery full end-to-end retest.
-13. Mechanic-role permissions from a separate/incognito login.
-14. Inter-site equipment move with more than one active site.
-15. Filter edit/delete, including duplicate-identical-filter edge cases.
+9. Custom decimal expected operation.
+10. Owner service-history delete / PM rollback.
+11. Oil capacity units.
+12. Password recovery end-to-end.
+13. Mechanic permissions in separate/incognito login.
+14. Inter-site equipment move.
+15. Filter edit/delete duplicate-edge case.
 
-Do not run destructive tests against real records unless the owner clearly intends it.
+Do not run destructive tests against real records unless clearly intended.
 
-## 21. Known future ideas / roadmap
+## 20. Future ideas discussed
 
-Possible future work discussed or implied:
+Possible later work:
 
 - work-ticket assignment
 - ticket reopen / edit priority / edit title
 - in-app / email / push notifications
 - richer site-status visualization
-- continued monthly mechanics schedule updates
-- more field-friendly mobile refinements as screenshots reveal issues
+- more mechanics schedule months
+- continued mobile refinements
 
-Do not implement speculative features without the owner asking for them.
+Do not implement speculative features until requested.
 
-## 22. Recent project commits at the time of this handoff
+## 21. Recent project commits at this checkpoint
 
-Newest relevant commits when this file was created:
+Useful recent anchors:
 
-- `026152be9f9bbb6dd15b7ba419b7ed7e859db230` — Load login password show-hide control
-- `cb4f2b003a6e5b2834bd191a97c5d36e96d6caa3` — Add show-hide password button to login
-- `2b7e264e56030b9c2d22a07725a72eeb80bbc458` — Add terrain layer to dashboard site map
-- `e3e8850ba734ae5227587d47ab59811d934aef13` — Add selectable satellite layer to dashboard site map
-- `ca8706a087c390fffae3cd90dfd4009500dbe5d2` — Keep site map hover labels inside map edges
-- `29dea8cc029157926fd9d79c11ce5709ff780135` — Load dashboard job sites map
-- `0684f0de9eef9d3bbad0f6ab60255ed8e9153e78` — Fit site rotation strip within phone screen
-- `de0655a2483a72ae74eae6f8cb9f1c125b9fe9e9` — Make site rotation strip compact and rename statuses
-- `07ea9dadc6f57a0923037a94399ad236d32f0b1c` — Add SMS and FaceTime Audio buttons to on-duty mechanics
+- `026152be9f9bbb6dd15b7ba419b7ed7e859db230` — load login password show/hide
+- `cb4f2b003a6e5b2834bd191a97c5d36e96d6caa3` — add login password show/hide
+- `2b7e264e56030b9c2d22a07725a72eeb80bbc458` — terrain map layer
+- `e3e8850ba734ae5227587d47ab59811d934aef13` — satellite map layer
+- `ca8706a087c390fffae3cd90dfd4009500dbe5d2` — inward map labels
+- `29dea8cc029157926fd9d79c11ce5709ff780135` — load dashboard sites map
+- `0684f0de9eef9d3bbad0f6ab60255ed8e9153e78` — phone rotation strip fit
+- `de0655a2483a72ae74eae6f8cb9f1c125b9fe9e9` — compact rotation strip
+- `07ea9dadc6f57a0923037a94399ad236d32f0b1c` — SMS / FaceTime Audio
 
-These commit IDs are historical anchors only. Always inspect the current default branch before coding.
+Commit IDs are historical anchors only. Inspect the current default branch before coding.
 
-## 23. How to resume this project later
+## 22. How to resume later
 
-If returning after weeks or months, the ideal instruction is:
+Best restart instruction:
 
 > Open `PROJECT_HANDOFF.md` in `fearincognito/forged-field-pm-tracker-v3`, inspect the current GitHub files, and continue the V3 build from there. Do not touch V2.
 
 Then:
 
 1. Read this handoff.
-2. Fetch the current `index.html` to confirm script load order.
-3. Fetch any file that will be modified immediately before editing it.
-4. Inspect recent commits if the handoff is old.
+2. Fetch current `index.html` to confirm script order.
+3. Fetch any file immediately before editing it.
+4. Inspect recent commits if this handoff is old.
 5. Preserve Supabase RLS and backend role enforcement.
-6. Make the change directly.
-7. Give the owner only simple refresh/test instructions.
-8. Update this handoff after a meaningful milestone or major architecture/permission change.
+6. Make changes directly.
+7. Give the owner simple refresh/test instructions.
+8. Keep this handoff current.
 
-## 24. Security and privacy rules
+## 23. Hourly handoff auto-save
 
-Do not place any of the following in this file or repository:
+An hourly ChatGPT Automation named **V3 Handoff Autosave** is enabled as a safety net for this project.
 
-- user passwords
-- generated demo passwords
-- Supabase service-role key
-- database password
-- private API keys
-- authentication tokens
+Every hour it should:
 
-The browser-visible Supabase publishable key is expected to be public and protected by RLS, but there is no reason to duplicate it here.
+- check `fearincognito/forged-field-pm-tracker-v3` for meaningful V3 changes since the last handoff checkpoint
+- read the current `PROJECT_HANDOFF.md`, recent commits, and relevant changed files
+- update this handoff only when meaningful project state changed
+- refresh the last-updated timestamp when it writes
+- preserve useful existing history
+- update completed/tested items, unresolved checks, important module references, and useful recent commit anchors
+- make no commit when nothing meaningful changed
+- never touch V2
+- never add passwords, credentials, secrets, auth tokens, or personal phone numbers
+- report only if the automated save itself fails
 
-## 25. Continuity note
+This automation is a **repo-level safety net**, not a perfect transcript recorder. It can reliably capture changes that reach GitHub. Design decisions discussed in chat but not yet reflected in code may not be visible to the hourly check, so the live development conversation should still update this file after major decisions or meaningful milestones.
 
-This handoff is not meant to replace the full ChatGPT conversation. The best continuity setup is:
+If the automation is ever paused or removed, resume manual handoff updates until it is re-enabled.
 
-- keep the original project conversation in ChatGPT
-- keep this file in the V3 repository
+## 24. Continuity and backup
+
+Best continuity setup:
+
+- keep the original ChatGPT project conversation
+- keep this handoff in the V3 repo
+- let the hourly autosave maintain repo-level checkpoints
 - optionally export ChatGPT account data for an offline conversation backup
 
-The repository handoff preserves the technical state; the original conversation preserves screenshots, design discussion, wording preferences, and the reasoning behind individual UI decisions.
+The handoff preserves technical state. The original conversation preserves screenshots, design discussion, wording preferences, and the context behind UI decisions.
