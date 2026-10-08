@@ -1,5 +1,11 @@
 /* Mechanics schedule dashboard view for October and November 2026. */
 (function () {
+  const mechanicContacts = {
+    "Harley Niedzielski": "",
+    "Josh Wiome": "",
+    "Ryker Thacyk": ""
+  };
+
   const schedule = {
     "2026-10": {
       label: "October 2026",
@@ -95,6 +101,16 @@
       .mechanics-schedule-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 12px;}
       .mechanics-schedule-toolbar button{min-width:140px;}
       .mechanics-schedule-toolbar button.active{box-shadow:inset 0 0 0 3px rgba(255,255,255,.35);}
+      .on-duty-box{margin:16px 0;padding:14px;border:1px solid #c9d8e3;border-radius:12px;background:#f4f9fc;}
+      .on-duty-box h3{margin:0 0 4px;}
+      .on-duty-box>small{display:block;color:#667785;margin-bottom:10px;}
+      .on-duty-list{display:grid;gap:8px;}
+      .on-duty-person{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;border:1px solid #d7e0e7;border-radius:10px;padding:10px 12px;}
+      .on-duty-contact{min-width:0;}
+      .on-duty-contact strong{display:block;}
+      .on-duty-contact a,.on-duty-contact span{display:block;margin-top:2px;font-size:13px;color:#5f6f7b;text-decoration:none;}
+      .on-duty-call{flex:0 0 auto;min-width:88px;text-align:center;}
+      .on-duty-empty{margin:0;color:#667785;}
       .schedule-legend{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px;}
       .schedule-legend span{display:inline-flex;align-items:center;gap:6px;font-size:12px;}
       .schedule-swatch{width:18px;height:18px;border-radius:4px;border:1px solid #c7d0d8;display:inline-block;}
@@ -125,6 +141,8 @@
         .mechanics-schedule-toolbar{display:grid;grid-template-columns:1fr 1fr;}
         .mechanics-schedule-toolbar button{min-width:0;width:100%;}
         .schedule-blocks{grid-template-columns:1fr 1fr;}
+        .on-duty-person{align-items:stretch;}
+        .on-duty-call{display:flex;align-items:center;justify-content:center;}
       }
       @media (max-width:420px){
         .schedule-blocks{grid-template-columns:1fr;}
@@ -154,6 +172,49 @@
   function rangeLabel(month, block) {
     const monthName = month.label.split(" ")[0];
     return block.start === block.end ? `${monthName} ${block.start}` : `${monthName} ${block.start}–${block.end}`;
+  }
+
+  function todayScheduleInfo() {
+    const today = new Date();
+    const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+    const month = schedule[key];
+    if (!month) return { covered: false, people: [] };
+    const day = today.getDate();
+    const people = month.people
+      .map(person => ({ ...person, status: statusForDay(person, day) }))
+      .filter(person => person.status === "Days");
+    return { covered: true, people };
+  }
+
+  function renderOnDuty() {
+    const host = document.querySelector("#onDutyMechanics");
+    if (!host) return;
+    const info = todayScheduleInfo();
+
+    if (!info.covered) {
+      host.innerHTML = '<p class="on-duty-empty">No mechanic schedule is loaded for today.</p>';
+      return;
+    }
+
+    if (!info.people.length) {
+      host.innerHTML = '<p class="on-duty-empty">No mechanics are scheduled on today.</p>';
+      return;
+    }
+
+    host.innerHTML = info.people.map(person => {
+      const phone = String(mechanicContacts[person.name] || "").trim();
+      const phoneHref = phone.replace(/[^+\d]/g, "");
+      return `
+        <div class="on-duty-person">
+          <div class="on-duty-contact">
+            <strong>${escapeHtml(person.name)}</strong>
+            ${phone
+              ? `<a href="tel:${escapeHtml(phoneHref)}">${escapeHtml(phone)}</a>`
+              : '<span>Phone number not added yet</span>'}
+          </div>
+          ${phone ? `<a class="on-duty-call button" href="tel:${escapeHtml(phoneHref)}">📞 Call</a>` : ""}
+        </div>`;
+    }).join("");
   }
 
   function renderScheduleMonth() {
@@ -221,6 +282,12 @@
           <button id="mechanicsScheduleBack" type="button">← Dashboard</button>
         </div>
 
+        <div class="on-duty-box">
+          <h3>Mechanics On Today</h3>
+          <small>Only mechanics scheduled for Days today are shown here.</small>
+          <div id="onDutyMechanics" class="on-duty-list"></div>
+        </div>
+
         <div class="mechanics-schedule-toolbar">
           ${Object.entries(schedule).map(([key, month]) => `<button type="button" class="scheduleMonthButton" data-month="${key}">${escapeHtml(month.label)}</button>`).join("")}
         </div>
@@ -243,6 +310,7 @@
       });
     });
 
+    renderOnDuty();
     renderScheduleMonth();
   };
 
