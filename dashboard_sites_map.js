@@ -106,6 +106,18 @@
     });
   }
 
+  function inwardTooltipDirection(map, marker) {
+    const point = map.latLngToContainerPoint(marker.getLatLng());
+    const size = map.getSize();
+    const edgeX = Math.max(80, Math.min(140, size.x * 0.24));
+    const edgeY = Math.max(50, Math.min(90, size.y * 0.22));
+
+    if (point.x < edgeX) return "right";
+    if (point.x > size.x - edgeX) return "left";
+    if (point.y < edgeY) return "bottom";
+    return "top";
+  }
+
   async function renderMapCard() {
     const grid = appView?.querySelector(".grid");
     if (!grid || document.querySelector("#dashboardSitesMapCard")) return;
@@ -191,14 +203,26 @@
             </div>
           </div>`;
 
-        L.marker([lat, lng], { icon: pinIcon(L, state.key), title: site.name })
+        const marker = L.marker([lat, lng], { icon: pinIcon(L, state.key), title: site.name })
           .addTo(dashboardMap)
-          .bindTooltip(site.name, { direction: "top", offset: [0, -22] })
-          .bindPopup(popup);
+          .bindTooltip(site.name, { direction: "top", offset: [0, -22], opacity: 0.95 })
+          .bindPopup(popup, { autoPan: true, keepInView: true, autoPanPadding: [24, 24] });
+
+        marker.on("mouseover", () => {
+          const tooltip = marker.getTooltip();
+          if (!tooltip) return;
+          tooltip.options.direction = inwardTooltipDirection(dashboardMap, marker);
+          const direction = tooltip.options.direction;
+          tooltip.options.offset = direction === "left" ? [-14, -10]
+            : direction === "right" ? [14, -10]
+            : direction === "bottom" ? [0, 10]
+            : [0, -22];
+          marker.openTooltip();
+        });
       });
 
       if (bounds.length === 1) dashboardMap.setView(bounds[0], 10);
-      else dashboardMap.fitBounds(bounds, { padding: [28, 28], maxZoom: 11 });
+      else dashboardMap.fitBounds(bounds, { padding: [52, 52], maxZoom: 11 });
 
       setTimeout(() => dashboardMap?.invalidateSize(), 100);
     } catch (mapError) {
