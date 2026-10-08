@@ -181,6 +181,31 @@
   }
 
   const baseShowAddEquipmentForm = window.showAddEquipmentForm;
+  // Fleet selection reuses the same photo preview and private upload workflow.
+  window.equipmentPhotoWorkflow = {
+    getPending: () => pendingAddPhoto,
+    upload: uploadPhoto,
+    setPending(prepared) {
+      pendingAddPhoto = prepared;
+      const preview = document.querySelector("#addEquipmentPhotoPreview");
+      if (!preview) return;
+      if (preview.dataset.objectUrl) URL.revokeObjectURL(preview.dataset.objectUrl);
+      preview.replaceChildren();
+      if (prepared) {
+        const img = document.createElement("img");
+        img.className = "equipment-photo-preview";
+        img.alt = "Selected fleet equipment photo";
+        preview.dataset.objectUrl = URL.createObjectURL(prepared.blob);
+        img.src = preview.dataset.objectUrl;
+        preview.appendChild(img);
+      } else {
+        delete preview.dataset.objectUrl;
+        preview.textContent = "No photo selected.";
+      }
+      const status = document.querySelector("#addEquipmentPhotoStatus");
+      if (status) status.textContent = prepared ? "Fleet photo ready — uploads when saved. You can choose a replacement." : "";
+    }
+  };
   if (typeof baseShowAddEquipmentForm === "function") {
     window.showAddEquipmentForm = function (siteId) {
       pendingAddPhoto = null;

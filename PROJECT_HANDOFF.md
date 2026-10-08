@@ -1,6 +1,6 @@
 # Forged Field PM Tracker V3 — Project Handoff
 
-_Last updated: 2026-10-07 (America/Los_Angeles)_
+_Last updated: 2026-10-08 (America/Los_Angeles)_
 
 This is the living continuity document for Forged Field PM Tracker V3. Read it first when returning to the project after a break or when a new ChatGPT session needs to continue development.
 
@@ -471,3 +471,25 @@ Best continuity setup:
 - optionally export ChatGPT account data for an offline conversation backup
 
 The handoff preserves technical state. The original conversation preserves screenshots, design discussion, wording preferences, and the context behind UI decisions.
+
+## 25. Fleet reference selector (2026-10-08)
+
+Add Equipment now includes a searchable **Select from Fleet Reference** list plus **Add Manually / Clear Selection**. Search covers unit, description, make and model. Selecting a source record fills available unit/name/make/model/year/VIN/equipment serial/engine serial/notes and loads its screenshot photo into the existing private photo workflow. Current hours stay blank for the mechanic to enter; historical source hours appear separately. GPS, ownership/status and operating assumptions remain reviewable.
+
+- Source catalog: 277 cbcstaff.ca equipment records, A01 through YT07; 198 exact screenshot photos and 79 records without equipment photos.
+- Private tables: `fleet_reference` (immutable source JSON excluding photos) and `fleet_reference_photos` (exact original photo JSON, fetched only on selection). No source data/photos are published in GitHub.
+- DDL migration: `add_fleet_reference_catalog`; schema reference in `sql/fleet_reference.sql`.
+- RLS: active owner/admin/mechanic can read the whole catalog; other active users can read references linked to equipment accessible through existing equipment RLS. Anonymous users have no catalog access. Clients cannot modify source snapshots.
+- `equipment.fleet_reference_id` links to the source record, with a unique index preventing concurrent duplicate imports of the same reference.
+- Recognizable unit numbers from descriptions take precedence over legacy source unit fields (for example A803 → A581). Duplicate display units remain separate source records, labelled with source record ID.
+- Confirmed existing matches R411 (source 576) and TSU411 (source 283) were linked only. No meters, names, manufacturer, notes, photos or site assignments were overwritten. Operational equipment count remains five.
+- Existing confirmed matches open the current equipment record. Same-unit records with different/uncertain identifiers require checking the existing machine and explicitly acknowledging a different machine before saving.
+- Saving a new selection inserts equipment only when the mechanic saves it to the chosen site. Year and oil-capacity unit are included in that insert. The selected photo is copied into `equipment-photos` using the normal equipment photo upload helper.
+- Original fleet details and notes remain available in a collapsed panel on linked equipment. If a photo upload failed and no primary photo exists, **Use Original Fleet Photo** retries from the preserved snapshot.
+- Parsed filters/components from the R602 source snapshot are preserved as reference data; this release does not infer PM intervals or automatically convert free-text parts notes into operational filters/inventory.
+
+Modules: `fleet_reference.js` loads last, preserving all existing wrappers. `equipment_photos.js` exposes a small `equipmentPhotoWorkflow` API for pending preview and upload reuse.
+
+Verification completed: database comparison of all 277 source JSON records and 198 photo base64 hashes (zero mismatches); mechanic/viewer/anonymous permissions; rollback-only unique-source insert check; existing equipment meters/sites/photos preserved. DOM integration tests load the complete production script order and exercise R602 autofill/photo save, source-hours separation, TSU411 existing match, renumbering, duplicate identifiers, ambiguous matches, failed photo loading, manual reset, and original-detail rendering. Browser visual/iPhone verification remains for the owner: refresh → Nev Gold → Add Equipment → search R602 → select → review.
+
+Test command (Node 24.15+): `npm ci` then `npm run test:fleet -- /absolute/path/to/Forged-equipment-reference-COMPLETE-A01-YT07.json`. The private collected file remains separate from the repository. Frontend has no new runtime dependencies.
