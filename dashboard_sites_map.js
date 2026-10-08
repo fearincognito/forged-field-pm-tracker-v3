@@ -192,18 +192,23 @@
         maxZoom: 19,
         attribution: "Tiles &copy; Esri"
       });
+      const terrainLayer = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+        maxZoom: 17,
+        attribution: "Map data &copy; OpenStreetMap contributors, SRTM | Map style &copy; OpenTopoMap"
+      });
 
       let preferredLayer = "Street";
       try {
         const saved = localStorage.getItem(layerPreferenceKey);
-        if (saved === "Satellite") preferredLayer = saved;
+        if (["Street", "Satellite", "Terrain"].includes(saved)) preferredLayer = saved;
       } catch (_) {}
 
       if (preferredLayer === "Satellite") satelliteLayer.addTo(dashboardMap);
+      else if (preferredLayer === "Terrain") terrainLayer.addTo(dashboardMap);
       else streetLayer.addTo(dashboardMap);
 
       L.control.layers(
-        { Street: streetLayer, Satellite: satelliteLayer },
+        { Street: streetLayer, Satellite: satelliteLayer, Terrain: terrainLayer },
         null,
         { position: "topright", collapsed: window.matchMedia("(max-width:650px)").matches }
       ).addTo(dashboardMap);
