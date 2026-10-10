@@ -1,0 +1,25 @@
+const {JSDOM}=require('jsdom');
+const fs=require('fs'),assert=require('node:assert/strict');
+const dom=new JSDOM('<section id="appView"><div class="grid"></div></section>',{runScripts:'outside-only',url:'https://example.test'});
+const w=dom.window; w.appView=w.document.querySelector('#appView');
+w.currentProfile={role:'admin',full_name:'Mechanic'};w.currentUser={id:'u'};
+w.escapeHtml=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+w.renderDashboard=()=>{w.appView.querySelector('.grid').innerHTML=''};
+const records=Array.from({length:501},(_,i)=>({id:String(i),equipment_id:'e',service_date:i===500?'2026-12-31':'2026-01-01',service_name:i===0?'<script>bad</script>':'250 hour PM',service_hours:250,scheduled_due_hours:250,completed_by:'u',notes:'Done',parts_used:'Filter'}));
+const calls=[];w.db={rpc:async()=>({data:[{id:'u',full_name:'Mechanic'}]}),from:table=>{let start,end,lo,hi;return {select(){return this},order(){return this},range(a,b){lo=a;hi=b;return this},gte(k,v){start=v;return this},lte(k,v){end=v;return this},then(resolve){calls.push({table,start,end,lo,hi});let data=table==='service_history'?records.filter(r=>r.service_date>=start&&r.service_date<=end):table==='equipment'?[{id:'e',unit_number:'R411',name:'Rig',site_id:'s',archived:true}]:[{id:'s',name:'Nev Gold'}];return Promise.resolve({data:data.slice(lo,hi+1)}).then(resolve)}}}};
+w.eval(fs.readFileSync('service_reports.js','utf8'));
+(async()=>{
+w.renderDashboard();assert(w.document.querySelector('#serviceReportsCard'));w.showServiceReports();
+w.document.querySelector('#reportStart').value='2026-01-01';w.document.querySelector('#reportEnd').value='2026-12-31';
+await w.document.querySelector('#reportForm').onsubmit({preventDefault(){}});
+assert.equal(w.document.querySelectorAll('.report-service').length,501);
+assert(w.document.querySelector('#reportPreview').textContent.includes('Dec 31, 2026'));
+assert(w.document.querySelector('#reportPreview').textContent.includes('Archived'));
+assert.equal(w.document.querySelector('#reportPreview script'),null);
+assert(calls.some(c=>c.table==='service_history'&&c.lo===500));
+assert.equal(w.document.querySelector('#reportExports').classList.contains('hidden'),false);
+w.document.querySelector('#reportStart').value='2027-01-01';w.document.querySelector('#reportStart').dispatchEvent(new w.Event('change'));assert.equal(w.document.querySelector('#reportPreview').innerHTML,'');
+await w.document.querySelector('#reportForm').onsubmit({preventDefault(){}});assert(w.document.querySelector('#reportMessage').textContent.includes('valid date range'));
+w.currentProfile.role='viewer';w.renderDashboard();assert.equal(w.document.querySelector('#serviceReportsCard'),null);w.showServiceReports();assert.equal(w.document.querySelector('#reportForm'),null);
+console.log('PASS: admin visibility, role guard, inclusive dates, 501-record pagination, archived equipment, escaping and stale export reset.');dom.window.close();
+})().catch(e=>{console.error(e);process.exitCode=1});

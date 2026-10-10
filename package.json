@@ -3,7 +3,8 @@
   "private": true,
   "scripts": {
     "test:fleet": "node tests/fleet_reference.test.cjs",
-    "test:pack": "node tests/pack_list.test.cjs"
+    "test:pack": "node tests/pack_list.test.cjs",
+    "test:reports": "node tests/service_reports.test.cjs"
   },
   "devDependencies": {
     "jsdom": "30.1.2"

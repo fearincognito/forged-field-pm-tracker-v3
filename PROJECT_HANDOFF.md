@@ -1,6 +1,6 @@
 # Forged Field PM Tracker V3 — Project Handoff
 
-_Last updated: 2026-10-08 (America/Los_Angeles)_
+_Last updated: 2026-10-10 (America/Los_Angeles)_
 
 This is the living continuity document for Forged Field PM Tracker V3. Read it first when returning to the project after a break or when a new ChatGPT session needs to continue development.
 
@@ -520,3 +520,12 @@ Verified: rollback-only mechanic delete with linked completed service (retained 
 All existing pack-list modes (selected equipment and full site) share the builder in `site_inventory.js`. After consolidating site inventory by part number, a part with exactly **1 On Site** now has **Bring at least 1** for a backup. Bring remains the larger of the actual shortage and this one-unit minimum. Example: Required 1 / On Site 1 → Bring 1; Required 3 / On Site 1 → Bring 2. With zero or two-plus on site, existing shortage calculation remains unchanged. Inventory quantities are not modified by generating a pack list.
 
 Affected rows show **Bring at least 1 backup — only 1 on site** and the pack-list explanation describes the rule. `npm run test:pack` checks selected/full-site modes, one-stock backup, shortages, sufficient stock, and consolidated duplicate inventory rows using the actual rendered pack-list workflow.
+
+
+## 29. Calendar contrast and admin service reports (2026-10-10)
+
+FI uses pale blue with dark navy text; FO uses dark navy with white text. Explicit strong/small selectors override the grid-wide small-text colour on mobile calendar cards, fixing blended labels. Desktop and mobile share these status styles.
+
+New module `service_reports.js` loads last and adds an Owner/Admin-only **Service Reports** dashboard button. Choose inclusive start/end dates, This Year or Last Year, then Generate Report. Report includes fleet summary and every individual completed service grouped by equipment, meter/scheduled due hours, completion name, parts and notes. Includes archived equipment. Current site assignments are explicitly labelled (history does not snapshot the service site). Read-only paginated queries use existing RLS; no database schema or permissions changed. PDF uses a separate professional print layout and browser Save as PDF; CSV exports all detailed rows, with formula-injection escaping. Date changes invalidate old previews/exports; async results are discarded after navigation or date changes. Reports load the entire range, without the history dashboard's 250-record limit.
+
+Verified schema and existing SELECT RLS; live service_history was empty at implementation. `npm run test:reports` checks admin/viewer guards, inclusive year dates, pagination across 501 records, archived equipment, escaped content, and invalidated exports. `npm run test:pack` confirms the already-published one-stock backup rule. Visual browser/iPhone and print-dialog checks remain for owner. Refresh → Service Reports → dates → Generate → Print / Save as PDF. No live operational records were changed.

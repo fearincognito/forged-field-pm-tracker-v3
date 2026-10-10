@@ -128,8 +128,10 @@
       .schedule-cell{min-width:42px;font-weight:700;}
       .schedule-days{background:#fff1c9;}
       .schedule-off{background:#f1f3f5;color:#4d5963;}
-      .schedule-fi{background:#939393;color:#111;}
-      .schedule-fo{background:#737373;color:#fff;}
+      .schedule-fi{background:#dbeafe;color:#102a43;}
+      .schedule-fo{background:#263f56;color:#fff;}
+      .grid .schedule-fi strong,.grid .schedule-fi small{color:#102a43;}
+      .grid .schedule-fo strong,.grid .schedule-fo small{color:#fff;}
       .schedule-today{outline:3px solid #2b6f9d;outline-offset:-3px;}
       .schedule-mobile{display:none;}
       .schedule-person-card{border:1px solid #d7e0e7;border-radius:10px;padding:12px;margin-top:10px;}
