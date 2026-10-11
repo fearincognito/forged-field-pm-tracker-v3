@@ -1,6 +1,6 @@
 # Forged Field PM Tracker V3 — Project Handoff
 
-_Last updated: 2026-10-10 (America/Los_Angeles)_
+_Last updated: 2026-10-11 (America/Los_Angeles)_
 
 This is the living continuity document for Forged Field PM Tracker V3. Read it first when returning to the project after a break or when a new ChatGPT session needs to continue development.
 
@@ -554,3 +554,10 @@ Test: `node tests/equipment_rental_company.test.cjs` verifies conditional visibi
 Selecting a rental company in Add/Edit Equipment shows its salesperson, sales phone/email, parts/service phone/email and notes beneath the selector. Saved rental equipment also displays this contact panel under the ownership/status strip. Tappable links support dialling/email composition. Company changes refresh contacts; Owned/blank selections clear/hide them. Request tokens and DOM connection checks prevent stale company information after rapid changes/navigation.
 
 Migration `rental_company_contact_details` supplies a read-only ID-scoped lookup: active maintainers may view selected-company contacts; other users may view only companies linked to rental equipment at an accessible site. Directory editing stays Owner/Admin-only. Function has empty search_path, explicit qualified references and no PUBLIC/anon EXECUTE. No operational records changed. Selector DOM tests cover rendered contacts, links and escaped notes; backend authorization checked with rollback-only temporary contact.
+
+
+## 33. Edit PM schedules (2026-10-11)
+
+Active schedule cards offer **Edit PM Schedule** for Owner/Admin/Mechanic. Prefilled form edits service name/description/interval/last service hours/next due hours. Next due is preserved on ordinary edits; optional Calculate Next Due explicitly sets last+interval. Cancel/Back return to equipment. Saving updates only the schedule, retaining completed history, machine hours and creation metadata. Existing maintenance UPDATE RLS retained. Optimistic filters on original interval/last/next detect concurrent service advancement and prevent stale due-hour overwrite. Zero/negative invalid interval and negative hour values rejected. Returned ID required to confirm success.
+
+Test `node tests/pm_edit.test.cjs`: prefill, preserved due point, schedule-only update, explicit calculation, cancellation and viewer guard. Syntax check passed. Browser visual check remains: refresh → equipment → PM → Edit PM Schedule → Save Changes.

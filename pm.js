@@ -178,7 +178,7 @@ window.openEquipment = async function(equipmentId, siteId) {
                   ${estimated ? `<br><small>Estimated: ${escapeHtml(estimated)}</small>` : ""}
                 </div>
               </div>
-              ${currentProfile && ["owner", "admin", "mechanic"].includes(currentProfile.role) ? `<button type="button" class="secondary-button deletePmSchedule" data-id="${escapeHtml(schedule.id)}" data-name="${escapeHtml(schedule.service_name)}" style="margin-top:10px;">Delete PM Schedule</button><p class="pmDeleteStatus" role="status"></p>` : ""}
+              ${currentProfile && ["owner", "admin", "mechanic"].includes(currentProfile.role) ? `<button type="button" class="secondary-button editPmSchedule" data-edit-id="${escapeHtml(schedule.id)}">Edit PM Schedule</button><button type="button" class="secondary-button deletePmSchedule" data-id="${escapeHtml(schedule.id)}" data-name="${escapeHtml(schedule.service_name)}" style="margin-top:10px;">Delete PM Schedule</button><p class="pmDeleteStatus" role="status"></p>` : ""}
             </article>`;
         }).join("")
       : `<div class="empty-state"><strong>No preventive maintenance schedules yet.</strong></div>`;
@@ -281,6 +281,9 @@ window.openEquipment = async function(equipmentId, siteId) {
   document.querySelector("#addPmScheduleButton").addEventListener("click", () => showPmScheduleForm(machine, siteId));
   document.querySelector("#addFilterButton").addEventListener("click", () => showEquipmentFilterForm(machine, siteId));
   document.querySelector("#recordServiceButton").addEventListener("click", () => showServiceForm(machine, siteId, schedules || []));
+  document.querySelectorAll(".editPmSchedule").forEach(button => {
+    button.addEventListener("click", () => showEditPmScheduleForm(machine, siteId, schedules.find(schedule => schedule.id === button.dataset.editId)));
+  });
   document.querySelectorAll(".deletePmSchedule").forEach(button => {
     button.addEventListener("click", async () => {
       if (!window.confirm(`Delete the PM schedule “${button.dataset.name}” entered by mistake?\n\nThis removes its interval and due-hour setup. Completed service history and current equipment hours will be kept.`)) return;
@@ -484,4 +487,61 @@ function showServiceForm(machine, siteId, schedules) {
 
     await openEquipment(machine.id, siteId);
   });
+}
+
+
+function showEditPmScheduleForm(machine, siteId, schedule) {
+  if (!schedule || !currentProfile || !["owner", "admin", "mechanic"].includes(currentProfile.role)) return;
+  const grid = appView.querySelector(".grid");
+  grid.innerHTML = `<section class="card" style="grid-column:1/-1"><div class="section-heading"><h2>Edit PM Schedule</h2><button id="pmEditBack" type="button">← Back to Equipment</button></div><p>${escapeHtml(machine.unit_number || machine.name)}</p>
+    <form id="pmEditForm">
+      <label>Service Name<input id="pmEditName" required value="${escapeHtml(schedule.service_name)}"></label>
+      <label>Description<textarea id="pmEditDescription" rows="3">${escapeHtml(schedule.description || "")}</textarea></label>
+      <div class="form-grid">
+        <label>Interval Hours<input id="pmEditInterval" type="number" min="1" step="0.1" required value="${escapeHtml(schedule.interval_hours ?? "")}"></label>
+        <label>Last Service Hours<input id="pmEditLast" type="number" min="0" step="0.1" value="${escapeHtml(schedule.last_service_hours ?? "")}"></label>
+        <label>Next Due Hours<input id="pmEditNext" type="number" min="0" step="0.1" value="${escapeHtml(schedule.next_due_hours ?? "")}"></label>
+      </div>
+      <div class="form-actions"><button type="button" id="pmEditCalculate" class="secondary-button">Calculate Next Due</button></div>
+      <p><small>Next Due stays as entered. Calculate Next Due sets it to Last Service Hours + Interval. Editing this schedule does not change completed service history or machine hours.</small></p>
+      <div class="form-actions"><button id="pmEditSave">Save Changes</button><button id="pmEditCancel" type="button" class="secondary-button">Cancel</button></div><p id="pmEditMessage" role="status" aria-live="polite"></p>
+    </form></section>`;
+  const form = document.querySelector("#pmEditForm"), message = document.querySelector("#pmEditMessage");
+  const back = () => window.openEquipment(machine.id, siteId);
+  document.querySelector("#pmEditBack").onclick = back;
+  document.querySelector("#pmEditCancel").onclick = back;
+  document.querySelector("#pmEditCalculate").onclick = () => {
+    const last = pmNumber(document.querySelector("#pmEditLast").value), interval = pmNumber(document.querySelector("#pmEditInterval").value);
+    if (last == null || last < 0 || interval == null || interval < 1) { message.textContent = "Enter valid Last Service Hours and Interval Hours first."; return; }
+    document.querySelector("#pmEditNext").value = Math.round((last + interval) * 10) / 10;
+    message.textContent = "Next Due calculated. Save Changes to apply it.";
+  };
+  let busy = false;
+  form.onsubmit = async event => {
+    event.preventDefault();
+    if (busy || !["owner","admin","mechanic"].includes(currentProfile?.role)) return;
+    const values = {
+      service_name: document.querySelector("#pmEditName").value.trim(),
+      description: document.querySelector("#pmEditDescription").value.trim() || null,
+      interval_hours: pmNumber(document.querySelector("#pmEditInterval").value),
+      last_service_hours: pmNumber(document.querySelector("#pmEditLast").value),
+      next_due_hours: pmNumber(document.querySelector("#pmEditNext").value),
+      updated_by: currentUser.id
+    };
+    if (!values.service_name || !Number.isFinite(values.interval_hours) || values.interval_hours < 1 || [values.last_service_hours,values.next_due_hours].some(v => v !== null && (!Number.isFinite(v) || v < 0))) {
+      message.textContent = "Enter a service name, interval of at least 1 hour, and non-negative hour readings."; return;
+    }
+    busy = true; document.querySelector("#pmEditSave").disabled = true; message.textContent = "Saving schedule…";
+    try {
+      const {data,error} = await db.from("pm_schedules").update(values).eq("id",schedule.id).eq("equipment_id",machine.id)
+        .eq("interval_hours",schedule.interval_hours)
+        [schedule.last_service_hours == null ? "is" : "eq"]("last_service_hours",schedule.last_service_hours)
+        [schedule.next_due_hours == null ? "is" : "eq"]("next_due_hours",schedule.next_due_hours)
+        .select("id").single();
+      if (error || !data) throw new Error(error?.code === "PGRST116" || !error ? "Schedule changed or is unavailable. Reopen it before editing again." : error.message);
+      if (form.isConnected) await back();
+    } catch (error) {
+      if (form.isConnected) { busy = false; document.querySelector("#pmEditSave").disabled = false; message.textContent = `Could not save: ${error.message}`; }
+    }
+  };
 }
