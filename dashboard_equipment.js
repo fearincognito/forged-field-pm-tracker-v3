@@ -74,18 +74,20 @@
     return next;
   };
 
-  function pmState(machine,schedules){
+  function pmState(machine,schedules,site){
+    const estimate=pmEstimatedHours(machine,site);
     const rows=schedules.filter(s=>s.equipment_id===machine.id && s.next_due_hours!=null);
     if(!rows.length || machine.current_hours==null) return {rank:9,text:"No PM due data",color:"#9aa7b2"};
     let best={rank:8,text:"PM OK",color:"#2f7d4a"};
     rows.forEach(s=>{
-      const r=Number(s.next_due_hours)-Number(machine.current_hours);
+      const r=Number(s.next_due_hours)-Number(estimate.hours);
       let x;
       if(r<0) x={rank:0,text:`${Math.abs(r).toFixed(1)} hrs overdue`,color:"#b42318"};
       else if(r===0) x={rank:0,text:"PM due now",color:"#b42318"};
       else if(r<=20) x={rank:1,text:`${r.toFixed(1)} hrs to PM`,color:"#d96b00"};
       else if(r<=50) x={rank:2,text:`${r.toFixed(1)} hrs to PM`,color:"#c58a00"};
       else x={rank:7,text:`${r.toFixed(1)} hrs to PM`,color:"#2f7d4a"};
+      if(estimate.estimated)x.text="Estimated: "+x.text;
       if(x.rank<best.rank) best=x;
     });
     return best;
@@ -113,8 +115,8 @@
     grid.innerHTML='<section class="card" style="grid-column:1/-1;"><p>Loading company equipment...</p></section>';
 
     const [sitesR,equipmentR,pmR,ticketsR]=await Promise.all([
-      db.from("sites").select("id,name").eq("archived",false).order("name"),
-      db.from("equipment").select("id,site_id,unit_number,name,make,model,serial_number,engine_serial_number,vin,ownership,status,current_hours").eq("archived",false),
+      db.from("sites").select("id,name,rotation_type,rotation_on_days,rotation_off_days,rotation_anchor_date").eq("archived",false).order("name"),
+      db.from("equipment").select("id,site_id,unit_number,name,make,model,serial_number,engine_serial_number,vin,ownership,status,current_hours,hours_recorded_at,operating_hours_per_day,archived").eq("archived",false),
       db.from("pm_schedules").select("equipment_id,next_due_hours").eq("active",true),
       db.from("work_tickets").select("equipment_id,status,priority").not("equipment_id","is",null)
     ]);
@@ -129,7 +131,7 @@
     const siteNames=Object.fromEntries(sites.map(s=>[s.id,s.name]));
     const machines=(equipmentR.data||[]).map(m=>{
       const activeTickets=tickets.filter(t=>t.equipment_id===m.id && (t.status==="open"||t.status==="in_progress"));
-      return {...m,pm:pmState(m,schedules),activeTickets};
+      return {...m,pm:pmState(m,schedules,sites.find(s=>s.id===m.site_id)),activeTickets};
     }).sort((a,b)=>a.pm.rank-b.pm.rank || String(a.unit_number||a.name).localeCompare(String(b.unit_number||b.name)));
 
     const pmAttention=machines.filter(m=>m.pm.rank<=2).length;

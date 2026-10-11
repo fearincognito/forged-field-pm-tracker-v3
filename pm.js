@@ -60,46 +60,38 @@ function pmRotationDays(site) {
   return null;
 }
 
-function pmEstimatedDueDate(machine, site, nextDueHours) {
-  const current = pmNumber(machine.current_hours);
-  const due = pmNumber(nextDueHours);
-  const hoursPerDay = pmNumber(machine.operating_hours_per_day);
-  if (current === null || due === null || hoursPerDay === null || hoursPerDay <= 0) return null;
-
-  const remaining = due - current;
-  if (remaining <= 0) return "Due now";
-
-  const rotation = pmRotationDays(site);
-  const anchor = site?.rotation_anchor_date ? new Date(`${site.rotation_anchor_date}T12:00:00`) : null;
-  let accumulated = 0;
-  let cursor = new Date();
-  cursor.setHours(12, 0, 0, 0);
-
-  for (let i = 0; i < 730; i++) {
-    let workingDay = true;
-
-    if (rotation && anchor) {
-      const diffDays = Math.floor((cursor - anchor) / 86400000);
-      const cycle = rotation.on + rotation.off;
-      const phase = ((diffDays % cycle) + cycle) % cycle;
-      workingDay = phase < rotation.on;
-    }
-
-    if (workingDay) {
-      accumulated += hoursPerDay;
-      if (accumulated >= remaining) {
-        return cursor.toLocaleDateString(undefined, {
-          year: "numeric",
-          month: "short",
-          day: "numeric"
-        });
-      }
-    }
-
-    cursor.setDate(cursor.getDate() + 1);
-  }
-
-  return null;
+function pmDay(value) {
+ const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(value));
+ const get=t=>Number(parts.find(p=>p.type===t).value);
+ return Math.floor(Date.UTC(get('year'),get('month')-1,get('day'))/86400000);
+}
+function pmWorkingDay(site,day) {
+ const r=pmRotationDays(site);if(!r)return true;
+ if(!site?.rotation_anchor_date)return null;
+ const anchor=Date.parse(site.rotation_anchor_date+'T00:00:00Z')/86400000;
+ if(!Number.isFinite(anchor))return null;
+ return ((day-anchor)%(r.on+r.off)+r.on+r.off)%(r.on+r.off)<r.on;
+}
+function pmEstimatedHours(machine,site,now=new Date()) {
+ const actual=pmNumber(machine.current_hours),daily=pmNumber(machine.operating_hours_per_day);
+ if(actual===null || !machine.hours_recorded_at || !daily || daily<=0 || machine.status==='out_of_service' || machine.archived)return {hours:actual,estimated:false};
+ const start=pmDay(machine.hours_recorded_at),today=pmDay(now);
+ if(pmWorkingDay(site,today)===null)return {hours:actual,estimated:false};
+ let days=0;
+ // Credit elapsed calendar days, excluding the current partial day.
+ for(let day=start;day<today;day++)if(pmWorkingDay(site,day))days++;
+ return {hours:Math.round((actual+days*daily)*10)/10,estimated:true};
+}
+function pmEstimatedDueDate(machine,site,nextDueHours,now=new Date()) {
+ const current=pmEstimatedHours(machine,site,now).hours,due=pmNumber(nextDueHours),daily=pmNumber(machine.operating_hours_per_day);
+ if(current===null || due===null || !daily || daily<=0 || machine.status==='out_of_service' || pmWorkingDay(site,pmDay(now))===null)return null;
+ if(due<=current)return 'Due now';
+ let accumulated=0;
+ for(let day=pmDay(now),i=0;i<3650;i++,day++){
+  if(pmWorkingDay(site,day))accumulated+=daily;
+  if(accumulated>=due-current)return new Date(day*86400000).toLocaleDateString(undefined,{timeZone:'UTC',year:'numeric',month:'short',day:'numeric'});
+ }
+ return null;
 }
 
 window.openEquipment = async function(equipmentId, siteId) {
@@ -114,7 +106,7 @@ window.openEquipment = async function(equipmentId, siteId) {
     { data: history, error: historyError }
   ] = await Promise.all([
     db.from("equipment")
-      .select(`id,site_id,unit_number,name,make,model,serial_number,engine_serial_number,vin,ownership,status,current_hours,operating_hours_per_day,oil_type,oil_capacity,notes,latitude,longitude,gps_accuracy_m,gps_captured_at,archived`)
+      .select(`id,site_id,unit_number,name,make,model,serial_number,engine_serial_number,vin,ownership,status,current_hours,hours_recorded_at,operating_hours_per_day,oil_type,oil_capacity,notes,latitude,longitude,gps_accuracy_m,gps_captured_at,archived`)
       .eq("id", equipmentId)
       .single(),
     db.from("sites")
@@ -161,7 +153,8 @@ window.openEquipment = async function(equipmentId, siteId) {
     ? `<div class="empty-state"><strong>PM schedules could not be loaded.</strong><br><small>${escapeHtml(schedulesError.message)}</small></div>`
     : schedules && schedules.length
       ? schedules.map(schedule => {
-          const status = pmStatusMeta(schedule.next_due_hours, machine.current_hours);
+          const estimate = pmEstimatedHours(machine, site);
+          const status = pmStatusMeta(schedule.next_due_hours, estimate.hours);
           const estimated = pmEstimatedDueDate(machine, site, schedule.next_due_hours);
           return `
             <article class="inset-card compact-card" style="${status.style}margin-top:10px;">
@@ -174,7 +167,7 @@ window.openEquipment = async function(equipmentId, siteId) {
                   <small><strong>Next due:</strong> ${pmDisplay(schedule.next_due_hours)} hrs</small>
                 </div>
                 <div style="text-align:right;">
-                  <strong>${escapeHtml(status.label)}</strong>
+                  <strong>${estimate.estimated ? "Estimated: " : ""}${escapeHtml(status.label)}</strong><br><small>Meter entered: ${pmDisplay(machine.current_hours)} hrs${machine.hours_recorded_at ? " · " + escapeHtml(new Date(machine.hours_recorded_at).toLocaleDateString()) : ""}</small><br><small>${estimate.estimated ? "Estimated meter: " + pmDisplay(estimate.hours) + " hrs · working days only" : "Set daily runtime and rotation anchor to enable estimates"}</small>
                   ${estimated ? `<br><small>Estimated: ${escapeHtml(estimated)}</small>` : ""}
                 </div>
               </div>

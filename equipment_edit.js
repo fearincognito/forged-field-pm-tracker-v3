@@ -325,6 +325,7 @@
         return;
       }
 
+      if (updateRecord.current_hours === (machine.current_hours == null ? null : Number(machine.current_hours))) delete updateRecord.current_hours;
       if (updateRecord.current_hours != null && (!Number.isFinite(updateRecord.current_hours) || updateRecord.current_hours < 0)) {
         message.innerHTML = '<span class="error-text">Engine hours must be a non-negative number.</span>';
         return;
