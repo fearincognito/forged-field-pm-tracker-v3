@@ -547,3 +547,10 @@ Add Equipment now reveals a Rental Company dropdown when Rental ownership is sel
 Migration `equipment_rental_company_link`: nullable company FK with ON DELETE SET NULL; no existing records changed. `rental_company_options()` is a narrowly scoped read-only SECURITY DEFINER lookup returning only company IDs/names for active owner/admin/mechanic via existing `is_mechanic_or_above()`, with empty search_path and no PUBLIC/anon execute grant. Contact directory remains Owner/Admin-only. No write permissions expanded.
 
 Test: `node tests/equipment_rental_company.test.cjs` verifies conditional visibility, saved selection and owned clearing. Owner check: refresh → Add Equipment → Rental → choose company → save; Edit Equipment should retain that selection.
+
+
+## 32. Rental contact information on equipment (2026-10-10)
+
+Selecting a rental company in Add/Edit Equipment shows its salesperson, sales phone/email, parts/service phone/email and notes beneath the selector. Saved rental equipment also displays this contact panel under the ownership/status strip. Tappable links support dialling/email composition. Company changes refresh contacts; Owned/blank selections clear/hide them. Request tokens and DOM connection checks prevent stale company information after rapid changes/navigation.
+
+Migration `rental_company_contact_details` supplies a read-only ID-scoped lookup: active maintainers may view selected-company contacts; other users may view only companies linked to rental equipment at an accessible site. Directory editing stays Owner/Admin-only. Function has empty search_path, explicit qualified references and no PUBLIC/anon EXECUTE. No operational records changed. Selector DOM tests cover rendered contacts, links and escaped notes; backend authorization checked with rollback-only temporary contact.
