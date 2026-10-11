@@ -557,6 +557,7 @@ function showAddEquipmentForm(siteId) {
     </section>
   `;
 
+  window.setupRentalCompanyField?.("equipmentOwnership");
   const back = () => openSite(siteId);
   document.querySelector("#cancelEquipment").addEventListener("click", back);
   document.querySelector("#cancelEquipmentBottom").addEventListener("click", back);
@@ -589,6 +590,7 @@ async function saveEquipment(event, siteId) {
     engine_serial_number: textOrNull("equipmentEngineSerial"),
     vin: textOrNull("equipmentVin") || "N/A",
     ownership: document.querySelector("#equipmentOwnership").value,
+    rental_company_id: window.selectedRentalCompany?.("equipmentOwnership") || null,
     status: document.querySelector("#equipmentStatus").value,
     current_hours: numberOrNull("equipmentHours"),
     operating_hours_per_day: numberOrNull("equipmentHoursPerDay"),
@@ -650,6 +652,7 @@ function showAddSiteItemForm(siteId) {
     </section>
   `;
 
+  window.setupRentalCompanyField?.("equipmentOwnership");
   const back = () => openSite(siteId);
   document.querySelector("#cancelSiteItem").addEventListener("click", back);
   document.querySelector("#cancelSiteItemBottom").addEventListener("click", back);

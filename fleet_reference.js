@@ -212,7 +212,7 @@
         site_id:siteId, fleet_reference_id:selected.record.id,
         unit_number:str("equipmentUnitNumber"), name:str("equipmentName"), make:str("equipmentMake"), model:str("equipmentModel"),
         serial_number:str("equipmentSerial"), engine_serial_number:str("equipmentEngineSerial"), vin:str("equipmentVin") || "N/A", year,
-        ownership:str("equipmentOwnership"), status:str("equipmentStatus"), current_hours:num("equipmentHours"),
+        ownership:str("equipmentOwnership"), rental_company_id:window.selectedRentalCompany?.("equipmentOwnership") || null, status:str("equipmentStatus"), current_hours:num("equipmentHours"),
         operating_hours_per_day:num("equipmentHoursPerDay"), oil_type:str("equipmentOilType"), oil_capacity:capacity,
         oil_capacity_unit:capacity === null ? null : oilUnit, notes:str("equipmentNotes"),
         latitude:num("equipmentLatitude"), longitude:num("equipmentLongitude"), gps_accuracy_m:accuracy,

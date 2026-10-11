@@ -25,7 +25,7 @@
   async function getEquipmentForEdit(equipmentId) {
     return db
       .from("equipment")
-      .select(`id,site_id,unit_number,name,make,model,serial_number,engine_serial_number,vin,ownership,status,current_hours,operating_hours_per_day,oil_type,oil_capacity,notes,latitude,longitude,gps_accuracy_m,gps_captured_at,gps_captured_by,archived`)
+      .select(`id,site_id,unit_number,name,make,model,serial_number,engine_serial_number,vin,ownership,rental_company_id,status,current_hours,operating_hours_per_day,oil_type,oil_capacity,notes,latitude,longitude,gps_accuracy_m,gps_captured_at,gps_captured_by,archived`)
       .eq("id", equipmentId)
       .single();
   }
@@ -110,6 +110,7 @@
         </form>
       </section>`;
 
+    window.setupRentalCompanyField?.("editOwnership", machine.rental_company_id);
     const goBack = () => window.openEquipment(equipmentId, siteId);
     document.querySelector("#hoursBackButton").addEventListener("click", goBack);
     document.querySelector("#hoursCancelButton").addEventListener("click", goBack);
@@ -273,6 +274,7 @@
         </form>
       </section>`;
 
+    window.setupRentalCompanyField?.("editOwnership", machine.rental_company_id);
     const goBack = () => window.openEquipment(equipmentId, siteId);
     document.querySelector("#editEquipmentBack").addEventListener("click", goBack);
     document.querySelector("#editEquipmentCancel").addEventListener("click", goBack);
@@ -303,6 +305,7 @@
         engine_serial_number: equipmentTextOrNull("editEngineSerial"),
         vin: equipmentTextOrNull("editVin") || "N/A",
         ownership: document.querySelector("#editOwnership").value,
+        rental_company_id: window.selectedRentalCompany?.("editOwnership") || null,
         status: document.querySelector("#editStatus").value,
         current_hours: equipmentNumberOrNull("editHours"),
         operating_hours_per_day: equipmentNumberOrNull("editHoursPerDay"),

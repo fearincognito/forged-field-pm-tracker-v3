@@ -538,3 +538,12 @@ New Owner/Admin dashboard button **Rental Companies** opens a searchable shared 
 `rental_companies.js` loads last. Migration `rental_companies_admin_directory` creates `public.rental_companies` with updated-at trigger and SELECT/INSERT/UPDATE/DELETE RLS restricted to active Owner/Admin through existing `is_admin()`. Anonymous access revoked. Mechanic/operator/viewer cannot read or modify the directory. No existing equipment/service data changed.
 
 Verification: DOM tests for admin visibility, add/edit/save/cancel, search, escaping, phone links and viewer guard; rollback-only backend write/access test; schema/RLS checks. Owner visual check: refresh → Rental Companies → Add Company → save → edit. Test: `npm run test:rentals`.
+
+
+## 31. Equipment rental company selector (2026-10-10)
+
+Add Equipment now reveals a Rental Company dropdown when Rental ownership is selected. Shared helper `equipment_rental_company.js` supports manual addition, fleet-reference addition and existing equipment edits. Saved FK `equipment.rental_company_id` persists selection; Owned saves null. Optional selection supports existing rentals and empty directories. Existing links are retained if option loading fails.
+
+Migration `equipment_rental_company_link`: nullable company FK with ON DELETE SET NULL; no existing records changed. `rental_company_options()` is a narrowly scoped read-only SECURITY DEFINER lookup returning only company IDs/names for active owner/admin/mechanic via existing `is_mechanic_or_above()`, with empty search_path and no PUBLIC/anon execute grant. Contact directory remains Owner/Admin-only. No write permissions expanded.
+
+Test: `node tests/equipment_rental_company.test.cjs` verifies conditional visibility, saved selection and owned clearing. Owner check: refresh → Add Equipment → Rental → choose company → save; Edit Equipment should retain that selection.
