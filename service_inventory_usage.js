@@ -123,6 +123,7 @@
             <label>Service Date<input id="serviceDate" type="date" required value="${today}"></label>
           </div>
 
+          <p><small>Service hours also update the equipment meter and restart its runtime estimate. A reading below the saved meter is kept in service history without lowering the equipment meter.</small></p>
           <div class="location-box" style="margin-top:16px;">
             <div class="section-heading" style="align-items:flex-start;">
               <div>
@@ -165,7 +166,7 @@
       const message = document.querySelector("#serviceMessage");
       const submitButton = event.submitter || document.querySelector("#serviceForm button[type=submit]");
       if (submitButton) submitButton.disabled = true;
-      message.textContent = "Saving service record and updating site inventory...";
+      message.textContent = "Saving service record, equipment hours and site inventory...";
 
       const selectedSchedule = scheduleSelect.selectedOptions[0];
       const scheduleId = selectedSchedule?.value || null;

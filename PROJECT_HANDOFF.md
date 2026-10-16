@@ -1,6 +1,6 @@
 # Forged Field PM Tracker V3 — Project Handoff
 
-_Last updated: 2026-10-11 (America/Los_Angeles)_
+_Last updated: 2026-10-16 (America/Los_Angeles)_
 
 This is the living continuity document for Forged Field PM Tracker V3. Read it first when returning to the project after a break or when a new ChatGPT session needs to continue development.
 
@@ -570,3 +570,10 @@ PM counters and company equipment PM badges now use estimated accumulated hours,
 Migration `equipment_hours_estimate_baseline` stamps all existing readings at deployment time to avoid invented historical accumulation. Trigger refreshes timestamp on every INSERT or UPDATE OF current_hours, including operator RPC and same-reading quick submissions. Full equipment edits omit unchanged hours so unrelated edits do not reset estimates. Missing runtime/rotation anchor falls back to actual hours. Out-of-service/archived records use actual hours without accumulating. Calculation is evaluated when equipment screens load; refresh/reopen to update on a new day. Historical unscheduled stoppages and past rotation/runtime changes are not logged by this model.
 
 Tests `node tests/pm_estimate.test.cjs`: workday accumulation, shutdown pause, manual reset, decimal runtime, missing anchor, consistent due date. PM edit regression passed; rollback-only YT07 check confirms meter timestamp reset without changing saved readings. All current readings remain unchanged.
+
+
+## 35. Record Service updates equipment meter (2026-10-16)
+
+Migration `service_updates_equipment_hours` adds an AFTER INSERT trigger on service_history. A service reading at or above the saved meter updates equipment.current_hours and updated_by atomically with service/inventory/PM recording. Existing hours-stamp trigger restarts automatic runtime estimates. Lower historical readings are retained in service history without rewinding the equipment meter. No existing service records or meters were backfilled. Trigger function is SECURITY INVOKER, empty search_path, qualified objects and no PUBLIC/anon execute; existing service permissions unchanged.
+
+Production Record Service form explains the behaviour. Verified via rollback-only authenticated owner RPC calls: greater reading updates meter/timestamp; older lower reading leaves meter unchanged. Syntax check passed. No test service persisted. User check: refresh → Record Service → enter hours → Save → equipment meter matches (unless higher hours are already saved).
