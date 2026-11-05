@@ -590,3 +590,12 @@ First successful end-to-end run: 42130524908, November 5, 2026; 29,833,515-byte 
 Coverage: application data/schema/functions/RLS in public; auth tables; Storage metadata; source files. IMPORTANT: uploaded Storage photo/logo file bytes are not yet copied. Fleet-reference photos embedded in public-table data are included. Full restore rehearsal remains outstanding; managed Supabase roles/extensions/configuration require a compatible target and careful restore procedure. GitHub source is a snapshot, not full git history. Backups use unique timestamp/run names, no automatic deletion or retention pruning.
 
 Next step for complete image-file coverage: configure a server-side Supabase Storage credential securely, then add read-only Storage object export and test it. Do not tell the owner that uploaded images are already protected. Owner informed database/source backup succeeded and image backup remains separate.
+
+
+## 37. Uploaded photo/logo backup completed (2026-11-05)
+
+Supersedes the Storage-byte limitation in section 36. SUPABASE_SERVICE_ROLE_KEY is configured only in GitHub Actions secrets and passed only to the backup job. The backup enumerates all Supabase Storage buckets recursively with pagination, downloads object bytes to safe hashed filenames, and preserves bucket configuration, original object names, byte counts and SHA-256 hashes in storage/manifest.json. Both expected photo/logo buckets must be present; failures do not silently produce a partial-success backup.
+
+Bucket/object inventory is compared before and after export to detect concurrent modifications. Database and Storage copies remain sequential rather than a transactionally atomic snapshot; full disaster-recovery restore rehearsal is still outstanding. Object contents are never uploaded to GitHub or logged. Bundle remains in a private SSE-B2 encrypted bucket, checked by full readback SHA-256.
+
+Verified live workflow run 42131363810: SUCCESS; 15 uploaded Storage files, 9,083,813 source bytes; full database/source/Storage archive 38,918,600 bytes uploaded to Backblaze and download checksum verified. Daily schedule remains 11:17 UTC. No live source files or database records were modified. Bounded local test verified safe mapping of unusual nested object names, exact bytes and per-object checksum.

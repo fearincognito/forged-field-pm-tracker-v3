@@ -2,7 +2,7 @@
 
 Run **Actions → Backblaze database backup → Run workflow** for an on-demand copy. Automatic schedule: daily at **11:17 UTC** (03:17 PST / 04:17 PDT). GitHub may delay scheduled runs and can disable schedules on inactive public repositories; check Actions periodically.
 
-The four credentials belong exclusively in repository Actions secrets. No credential belongs in frontend JavaScript or this document.
+The five credentials (including SUPABASE_SERVICE_ROLE_KEY) belong exclusively in repository Actions secrets. No credential belongs in frontend JavaScript or this document.
 
 ## Contents and verification
 
@@ -13,7 +13,14 @@ Each private, server-side-encrypted Backblaze archive includes:
 
 The workflow checks the dump table of contents, then downloads the completed B2 upload and compares SHA-256. This verifies archive readability and transfer integrity, not a complete restore.
 
-**Uploaded Supabase Storage image/file bytes are not included yet.** Only their database metadata is included. Embedded fleet-reference photo data in public tables is included.
+**Uploaded Supabase Storage files are included.** All buckets are enumerated recursively, with a second inventory check to detect changes during the export. Embedded fleet-reference photo data in public tables is also included.
+
+- `storage/manifest.json`: bucket configuration, original bucket/object paths, sizes and per-object SHA-256 hashes.
+- `storage/objects/<hash>`: exact uploaded file bytes, mapped to original names by the Storage manifest.
+
+For image recovery, verify each object checksum, then use the Supabase Storage API to upload the archived bytes to their recorded bucket/name. Recreate bucket settings as needed. Do not insert Storage metadata rows directly as a substitute for uploading actual objects. No automated production restore is performed.
+
+Database and Storage copies are sequential, not one atomic snapshot. Avoid uploads/replacements during backup; detected changes fail the job for retry. First full successful run: November 5, 2026, run 42131363810; 15 files backed up, full archive 38,918,600 bytes, download checksum verified.
 
 No pruning is configured; timestamped backups accumulate until a retention policy is explicitly set. Backups do not include managed infrastructure settings, database role passwords, Edge Function secrets, or full Git history.
 
