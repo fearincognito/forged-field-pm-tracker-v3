@@ -91,10 +91,25 @@ def main():
         root = Path(directory)
         database = root / 'database.dump'
         db_env = os.environ.copy()
-        db_env['PGDATABASE'] = os.environ['SUPABASE_DB_URL']
+        # libpq does not expand a URI inherited as the PGDATABASE default.
+        # Parse it into connection variables instead; never put secrets in CLI arguments.
+        try:
+            connection = urllib.parse.urlsplit(os.environ['SUPABASE_DB_URL'])
+            if not connection.hostname or not connection.username or not connection.password or connection.fragment:
+                raise ValueError()
+            db_env['PGHOST'] = connection.hostname
+            db_env['PGPORT'] = str(connection.port or 5432)
+            db_env['PGUSER'] = urllib.parse.unquote(connection.username)
+            db_env['PGPASSWORD'] = urllib.parse.unquote(connection.password)
+            db_env['PGDATABASE'] = urllib.parse.unquote(connection.path.lstrip('/')) or 'postgres'
+        except ValueError:
+            raise BackupError('Invalid connection string. Use the full Session pooler URL; special password characters such as # must be percent-encoded.') from None
         db_env['PGSSLMODE'] = 'require'
         db_env['PGCONNECT_TIMEOUT'] = '30'
-        docker = ['docker', 'run', '--rm', '-i', '-e', 'PGDATABASE', '-e', 'PGSSLMODE', '-e', 'PGCONNECT_TIMEOUT', 'postgres:17']
+        docker = ['docker', 'run', '--rm', '-i']
+        for variable in ['PGHOST','PGPORT','PGUSER','PGPASSWORD','PGDATABASE','PGSSLMODE','PGCONNECT_TIMEOUT']:
+            docker.extend(['-e',variable])
+        docker.append('postgres:17')
         print('Exporting public, auth and storage database schemas…', flush=True)
         with database.open('wb') as f:
             run(docker + ['pg_dump', '--format=custom', '--no-owner', '--no-privileges', '--schema=public', '--schema=auth', '--schema=storage'], env=db_env, output=f)
