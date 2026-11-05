@@ -66,8 +66,92 @@ def sha256(path):
     return h.hexdigest()
 
 
+STORAGE_BASE = 'https://eaehrhqsqmlcjcuzeyoh.supabase.co/storage/v1'
+
+
+def storage_request(path, payload=None):
+    key = os.environ['SUPABASE_SERVICE_ROLE_KEY']
+    headers = {'Authorization': 'Bearer ' + key, 'apikey': key}
+    data = None
+    if payload is not None:
+        headers['Content-Type'] = 'application/json'
+        data = json.dumps(payload).encode()
+    try:
+        return urllib.request.urlopen(urllib.request.Request(STORAGE_BASE + path, data=data, headers=headers), timeout=120)
+    except urllib.error.HTTPError as error:
+        raise BackupError(f'Supabase Storage returned HTTP {error.code}. Check SUPABASE_SERVICE_ROLE_KEY and object availability.') from None
+
+
+def storage_inventory():
+    with storage_request('/bucket') as response:
+        buckets = json.load(response)
+    if not {'equipment-photos', 'site-logos'}.issubset({b['id'] for b in buckets}):
+        raise BackupError('Expected photo/logo buckets were not returned. Check the service-role key belongs to this project.')
+    objects = []
+    for bucket in buckets:
+        pending = ['']
+        visited = set()
+        while pending:
+            prefix = pending.pop()
+            if prefix in visited:
+                continue
+            visited.add(prefix)
+            offset = 0
+            while True:
+                with storage_request('/object/list/' + urllib.parse.quote(bucket['id'], safe=''),
+                                     {'prefix': prefix, 'limit': 100, 'offset': offset,
+                                      'sortBy': {'column': 'name', 'order': 'asc'}}) as response:
+                    page = json.load(response)
+                for entry in page:
+                    name = prefix + '/' + entry['name'] if prefix else entry['name']
+                    if entry.get('id') is None:
+                        pending.append(name)
+                    else:
+                        objects.append({'bucket': bucket['id'], 'name': name, 'id': entry['id'],
+                                        'updated_at': entry.get('updated_at'), 'metadata': entry.get('metadata')})
+                if len(page) < 100:
+                    break
+                offset += len(page)
+    return {'buckets': sorted(buckets, key=lambda b: b['id']),
+            'objects': sorted(objects, key=lambda o: (o['bucket'], o['name']))}
+
+
+def export_storage(root, inventory):
+    folder = root / 'storage' / 'objects'
+    folder.mkdir(parents=True)
+    manifest = []
+    total = 0
+    for obj in inventory['objects']:
+        identity = json.dumps([obj['bucket'], obj['name']], ensure_ascii=False).encode()
+        local_name = hashlib.sha256(identity).hexdigest()
+        target = folder / local_name
+        h = hashlib.sha256()
+        size = 0
+        route = '/object/authenticated/' + urllib.parse.quote(obj['bucket'], safe='') + '/' + urllib.parse.quote(obj['name'], safe='/')
+        with storage_request(route) as response, target.open('wb') as output:
+            for block in iter(lambda: response.read(1024 * 1024), b''):
+                output.write(block)
+                h.update(block)
+                size += len(block)
+                total += len(block)
+                if total > 1024 * 1024 * 1024:
+                    raise BackupError('Storage exceeds 1 GiB; streaming multipart backup must be configured.')
+        expected_size = (obj.get('metadata') or {}).get('size')
+        if expected_size is not None and size != int(expected_size):
+            raise BackupError('Storage object size changed during backup; rerun to capture a stable copy.')
+        manifest.append({**obj, 'archive_path': 'storage/objects/' + local_name, 'bytes': size, 'sha256': h.hexdigest()})
+    # Detect additions, deletions and replacements during the dump/download window.
+    if inventory != storage_inventory():
+        raise BackupError('Storage changed during backup. Rerun when photo/logo uploads have finished.')
+    (root / 'storage' / 'manifest.json').write_text(json.dumps({'buckets': inventory['buckets'], 'objects': manifest}, indent=2))
+    print(f'Copied and hashed {len(manifest)} Storage files ({total:,} bytes).', flush=True)
+    return {'file_count': len(manifest), 'bytes': total,
+            'manifest_sha256': sha256(root / 'storage' / 'manifest.json')}
+
+
+
 def main():
-    required = ['SUPABASE_DB_URL', 'B2_APPLICATION_KEY_ID', 'B2_APPLICATION_KEY', 'B2_BUCKET_NAME']
+    required = ['SUPABASE_DB_URL', 'B2_APPLICATION_KEY_ID', 'B2_APPLICATION_KEY', 'B2_BUCKET_NAME', 'SUPABASE_SERVICE_ROLE_KEY']
     for name in required:
         if not os.environ.get(name):
             raise BackupError(f'Missing GitHub Actions secret: {name}')
@@ -89,6 +173,7 @@ def main():
     bucket_id = buckets[0]['bucketId']
     with tempfile.TemporaryDirectory(prefix='forged-backup-') as directory:
         root = Path(directory)
+        inventory = storage_inventory()
         database = root / 'database.dump'
         db_env = os.environ.copy()
         # libpq does not expand a URI inherited as the PGDATABASE default.
@@ -122,19 +207,20 @@ def main():
             raise BackupError('Database dump validation failed: equipment table data is missing.')
         with (root / 'source.tar').open('wb') as f:
             run(['git', 'archive', '--format=tar', 'HEAD'], output=f)
+        storage = export_storage(root, inventory)
         now = dt.datetime.now(dt.timezone.utc)
         metadata = {'created_at': now.isoformat(), 'project': 'eaehrhqsqmlcjcuzeyoh',
                     'commit': os.environ.get('GITHUB_SHA'), 'database_sha256': sha256(database),
                     'source_sha256': sha256(root / 'source.tar'),
                     'database_schemas': ['public', 'auth', 'storage'],
-                    'storage_file_bytes_included': False,
-                    'limitations': ['Storage metadata included; uploaded photo/logo file bytes require a separate Storage backup.',
+                    'storage_file_bytes_included': True, 'storage': storage,
+                    'limitations': ['Database and Storage exports are sequential, not a single transactional snapshot.',
                                     'Restore into a compatible Supabase project; managed roles/extensions/platform settings are not included.',
                                     'Archive readability verified; a full restore rehearsal is still required.']}
         (root / 'manifest.json').write_text(json.dumps(metadata, indent=2))
         bundle = root / 'backup.tar.gz'
         with tarfile.open(bundle, 'w:gz') as tar:
-            for name in ['database.dump', 'source.tar', 'manifest.json']:
+            for name in ['database.dump', 'source.tar', 'manifest.json', 'storage']:
                 tar.add(root / name, arcname=name)
         expected = sha256(bundle)
         filename = 'forged-pm/' + now.strftime('%Y/%m/%Y%m%dT%H%M%SZ') + '-' + os.environ.get('GITHUB_RUN_ID', 'manual') + '-' + os.environ.get('GITHUB_RUN_ATTEMPT', '1') + '.tar.gz'
@@ -158,7 +244,7 @@ def main():
                 raise BackupError('Backblaze download verification failed.')
         except urllib.error.HTTPError as e:
             raise BackupError(f'Backblaze upload/verification returned HTTP {e.code}.') from None
-        summary = f'Database + source backup uploaded and download checksum verified.\n\nSize: {len(data):,} bytes.\n\nUploaded photo/logo bytes are NOT included yet.\n'
+        summary = f"Database + source + Storage backup uploaded and download checksum verified.\n\nSize: {len(data):,} bytes.\n\nStorage files included: {storage['file_count']}.\n"
         print(summary)
         if os.environ.get('GITHUB_STEP_SUMMARY'):
             with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
