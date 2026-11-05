@@ -1,0 +1,28 @@
+# Off-site database backups
+
+Run **Actions → Backblaze database backup → Run workflow** for an on-demand copy. Automatic schedule: daily at **11:17 UTC** (03:17 PST / 04:17 PDT). GitHub may delay scheduled runs and can disable schedules on inactive public repositories; check Actions periodically.
+
+The four credentials belong exclusively in repository Actions secrets. No credential belongs in frontend JavaScript or this document.
+
+## Contents and verification
+
+Each private, server-side-encrypted Backblaze archive includes:
+- `database.dump`: PostgreSQL 17 custom dump of public, auth and storage schemas and data, without ownership/ACL restoration statements.
+- `source.tar`: tracked source at the workflow commit.
+- `manifest.json`: checksums, timestamp and declared coverage/limitations.
+
+The workflow checks the dump table of contents, then downloads the completed B2 upload and compares SHA-256. This verifies archive readability and transfer integrity, not a complete restore.
+
+**Uploaded Supabase Storage image/file bytes are not included yet.** Only their database metadata is included. Embedded fleet-reference photo data in public tables is included.
+
+No pruning is configured; timestamped backups accumulate until a retention policy is explicitly set. Backups do not include managed infrastructure settings, database role passwords, Edge Function secrets, or full Git history.
+
+## Restore preparation
+
+Use a disposable compatible Supabase project first. Download the desired archive privately and extract it in a protected directory. Verify the database/source checksums against the manifest. PostgreSQL 17 `pg_restore --list database.dump` shows archived objects without changing any database.
+
+A production restore requires a tested plan for managed auth/storage schemas, roles, extensions, foreign keys, triggers and application grants. Do not run a blanket restore against the live tracker. Never paste backup contents or connection strings into public GitHub logs/issues.
+
+## Failure handling
+
+An Actions failure is not a successful backup. Open the failed run for the safe error classification. Password changes require updating SUPABASE_DB_URL, with URL-reserved password characters percent-encoded. Use the Session pooler URL for IPv4-compatible GitHub runners. Private bucket and upload readback verification are required; failures stop the job.

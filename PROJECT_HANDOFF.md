@@ -1,6 +1,6 @@
 # Forged Field PM Tracker V3 — Project Handoff
 
-_Last updated: 2026-10-16 (America/Los_Angeles)_
+_Last updated: 2026-11-05 (America/Los_Angeles)_Angeles)_
 
 This is the living continuity document for Forged Field PM Tracker V3. Read it first when returning to the project after a break or when a new ChatGPT session needs to continue development.
 
@@ -577,3 +577,16 @@ Tests `node tests/pm_estimate.test.cjs`: workday accumulation, shutdown pause, m
 Migration `service_updates_equipment_hours` adds an AFTER INSERT trigger on service_history. A service reading at or above the saved meter updates equipment.current_hours and updated_by atomically with service/inventory/PM recording. Existing hours-stamp trigger restarts automatic runtime estimates. Lower historical readings are retained in service history without rewinding the equipment meter. No existing service records or meters were backfilled. Trigger function is SECURITY INVOKER, empty search_path, qualified objects and no PUBLIC/anon execute; existing service permissions unchanged.
 
 Production Record Service form explains the behaviour. Verified via rollback-only authenticated owner RPC calls: greater reading updates meter/timestamp; older lower reading leaves meter unchanged. Syntax check passed. No test service persisted. User check: refresh → Record Service → enter hours → Save → equipment meter matches (unless higher hours are already saved).
+
+
+## 36. Daily off-site database backups (2026-11-05)
+
+Workflow `.github/workflows/backblaze-backup.yml` runs daily at 11:17 UTC, manually via Actions, and on backup-script/workflow pushes. Secrets are configured in GitHub Actions only: SUPABASE_DB_URL, B2_APPLICATION_KEY_ID, B2_APPLICATION_KEY, B2_BUCKET_NAME. Never read, print, or store their values in source.
+
+`scripts/backup_to_b2.py` exports public/auth/storage schemas in PostgreSQL 17 custom format, validates archive table-of-contents for equipment data, bundles a tracked-source snapshot and checksum manifest, uploads to a verified private Backblaze bucket using SSE-B2, downloads the uploaded archive and verifies SHA-256. Temporary files are removed when the runner exits; no database backups are published as GitHub artifacts or repository files. Credentials are parsed into libpq environment variables and passed to Docker by variable name only, not command arguments. Sensitive exception details are suppressed.
+
+First successful end-to-end run: 42130524908, November 5, 2026; 29,833,515-byte database/source archive uploaded and full download checksum verified. Earlier connection-variable error was corrected. Live database records were not modified.
+
+Coverage: application data/schema/functions/RLS in public; auth tables; Storage metadata; source files. IMPORTANT: uploaded Storage photo/logo file bytes are not yet copied. Fleet-reference photos embedded in public-table data are included. Full restore rehearsal remains outstanding; managed Supabase roles/extensions/configuration require a compatible target and careful restore procedure. GitHub source is a snapshot, not full git history. Backups use unique timestamp/run names, no automatic deletion or retention pruning.
+
+Next step for complete image-file coverage: configure a server-side Supabase Storage credential securely, then add read-only Storage object export and test it. Do not tell the owner that uploaded images are already protected. Owner informed database/source backup succeeded and image backup remains separate.
