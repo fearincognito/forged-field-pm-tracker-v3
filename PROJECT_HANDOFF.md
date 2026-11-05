@@ -599,3 +599,14 @@ Supersedes the Storage-byte limitation in section 36. SUPABASE_SERVICE_ROLE_KEY 
 Bucket/object inventory is compared before and after export to detect concurrent modifications. Database and Storage copies remain sequential rather than a transactionally atomic snapshot; full disaster-recovery restore rehearsal is still outstanding. Object contents are never uploaded to GitHub or logged. Bundle remains in a private SSE-B2 encrypted bucket, checked by full readback SHA-256.
 
 Verified live workflow run 42131363810: SUCCESS; 15 uploaded Storage files, 9,083,813 source bytes; full database/source/Storage archive 38,918,600 bytes uploaded to Backblaze and download checksum verified. Daily schedule remains 11:17 UTC. No live source files or database records were modified. Bounded local test verified safe mapping of unusual nested object names, exact bytes and per-object checksum.
+
+
+## 38. Successful isolated restore rehearsal (2026-11-05)
+
+Workflow `.github/workflows/backblaze-restore-test.yml` and `scripts/restore_backup_test.py` download the latest archive from private Backblaze. The workflow has only B2 secrets: no Supabase database URL or service key, so it cannot connect to the live backend. It restores the dump into a disposable PostgreSQL 17 container with no network and no published ports; temporary data/container are deleted afterward.
+
+Verification: downloaded archive SHA-1 matches B2; component SHA-256 hashes match manifest; Storage files are copied to original bucket/name paths and each file checksum checked; source is safely extracted and index.html/app.js present. Database is restored with pg_restore --exit-on-error, retaining all archived constraints/functions/policies. Standard Supabase role names and uuid-ossp/pgcrypto extension dependencies are provisioned in the isolated target. Backup omits ACL/ownership, so test grants are added locally to exercise preserved RLS: anonymous cannot read equipment; active owner can.
+
+Run 42131998054 PASSED. Restored counts: equipment 13; sites 2; profiles 4; service_history 1; pm_schedules 10; Storage objects/files 15; foreign keys 68; unvalidated constraints 0; RLS-enabled public tables 15; policies 46. Critical table counts match the read-only live baseline observed before the test. Exact restored Storage bucket/name mapping matches the file manifest. No production writes or service requests occurred in the restore job.
+
+Scope limit: verifies database, source, file recovery and basic RLS. Does not test managed Supabase hosting setup, SMTP/login, API keys, browser workflows, Storage API re-upload, or a live production cutover. Those still need a separate compatible hosted staging environment for a complete application disaster-recovery drill. Re-run manually via Actions → Backblaze restore rehearsal → Run workflow.

@@ -33,3 +33,16 @@ A production restore requires a tested plan for managed auth/storage schemas, ro
 ## Failure handling
 
 An Actions failure is not a successful backup. Open the failed run for the safe error classification. Password changes require updating SUPABASE_DB_URL, with URL-reserved password characters percent-encoded. Use the Session pooler URL for IPv4-compatible GitHub runners. Private bucket and upload readback verification are required; failures stop the job.
+
+
+## Verified restore rehearsal — November 5, 2026
+
+**PASS:** [Actions run 42131998054](https://github.com/fearincognito/forged-field-pm-tracker-v3/actions/runs/42131998054).
+
+Latest private Backblaze archive downloaded, components/checksums validated, database restored into disposable network-isolated PostgreSQL 17, and source plus all uploaded files recovered to temporary directories. Test receives only B2 credentials; live Supabase cannot be reached with production credentials.
+
+Recovered 13 equipment, 2 sites, 4 profiles, 1 service record, 10 PM schedules and 15 uploaded files. 68 foreign keys restored; zero unvalidated constraints; 15 public tables with RLS and 46 policies. Anonymous and owner RLS checks passed. Storage database paths match recovered-file manifest exactly.
+
+Re-run via **Actions → Backblaze restore rehearsal → Run workflow**. No recurring restore test is scheduled. Container and temporary backup copies are deleted afterward.
+
+This validates data/source/file recovery. Hosted sign-in, managed Supabase configuration, SMTP, API redeployment, Storage API re-upload and production failover were not tested. The test recreates necessary local roles/extensions and adds local grants because ownership/ACL statements are intentionally excluded from the dump.
