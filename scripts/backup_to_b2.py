@@ -40,6 +40,14 @@ def run(args, env=None, output=None):
             detail = 'Database password rejected. Update SUPABASE_DB_URL.'
         elif b'could not translate host' in err or b'invalid integer' in err or b'invalid percent' in err:
             detail = 'Invalid database URL. Check the session-pooler URL and percent-encode special characters in the password.'
+        elif b'tenant or user not found' in err:
+            detail = 'Session pooler rejected the project username. Copy the full Session pooler connection string from Supabase Connect.'
+        elif b'network is unreachable' in err:
+            detail = 'Database host requires IPv6. Use the Session pooler connection string for GitHub Actions.'
+        elif b'connection refused' in err or b'timeout expired' in err:
+            detail = 'Database connection refused or timed out. Check the pooler host, port and network restrictions.'
+        elif b'could not connect to server' in err or b'no such file or directory' in err:
+            detail = 'Database connection was not established. Check that SUPABASE_DB_URL contains the complete connection string.'
         elif b'permission denied' in err:
             detail = 'Database user cannot export one or more schemas.'
         elif b'server version' in err:
@@ -63,6 +71,12 @@ def main():
     for name in required:
         if not os.environ.get(name):
             raise BackupError(f'Missing GitHub Actions secret: {name}')
+    db_url = os.environ['SUPABASE_DB_URL'].strip()
+    if not db_url.startswith(('postgresql://', 'postgres://')):
+        raise BackupError('SUPABASE_DB_URL must contain the FULL postgresql:// connection string, not just the password.')
+    if '[YOUR-PASSWORD]' in db_url:
+        raise BackupError('Replace the password placeholder in SUPABASE_DB_URL.')
+    os.environ['SUPABASE_DB_URL'] = db_url
     os.umask(0o077)
     key = base64.b64encode((os.environ['B2_APPLICATION_KEY_ID'] + ':' + os.environ['B2_APPLICATION_KEY']).encode()).decode()
     auth = request_json('https://api.backblazeb2.com/b2api/v4/b2_authorize_account', 'Basic ' + key)
