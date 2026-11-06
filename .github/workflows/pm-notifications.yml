@@ -1,0 +1,29 @@
+name: V3 PM service notifications
+on:
+  schedule:
+    - cron: '17 15 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: v3-pm-notifications
+  cancel-in-progress: false
+jobs:
+  deliver:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned provider clients
+        run: python -m pip install 'psycopg[binary]==3.2.12' 'requests==2.32.5' 'pywebpush==2.2.0'
+      - name: Check configuration and deliver alerts
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          PM_EMAIL_FROM: ${{ secrets.PM_EMAIL_FROM }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+        run: python scripts/pm_notifications.py
