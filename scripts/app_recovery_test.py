@@ -59,7 +59,7 @@ def application_test(root, restored, database_container, psql, storage):
         logs=subprocess.run(['docker','logs',target],stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.decode(errors='replace')
         logs=logs.replace(secret,'[test-secret]').replace(service,'[test-token]').replace(anon,'[test-token]')
         logs=re.sub(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+', '[redacted-address]', logs)
-        logs=re.sub(r'postgres(?:ql)?://[^\\s"\\']+', '[database-url]', logs)
+        logs=re.sub(r'postgres(?:ql)?://\S+', '[database-url]', logs)
         safe=[]
         for line in logs.splitlines():
             try:
