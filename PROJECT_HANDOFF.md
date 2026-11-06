@@ -610,3 +610,23 @@ Verification: downloaded archive SHA-1 matches B2; component SHA-256 hashes matc
 Run 42131998054 PASSED. Restored counts: equipment 13; sites 2; profiles 4; service_history 1; pm_schedules 10; Storage objects/files 15; foreign keys 68; unvalidated constraints 0; RLS-enabled public tables 15; policies 46. Critical table counts match the read-only live baseline observed before the test. Exact restored Storage bucket/name mapping matches the file manifest. No production writes or service requests occurred in the restore job.
 
 Scope limit: verifies database, source, file recovery and basic RLS. Does not test managed Supabase hosting setup, SMTP/login, API keys, browser workflows, Storage API re-upload, or a live production cutover. Those still need a separate compatible hosted staging environment for a complete application disaster-recovery drill. Re-run manually via Actions → Backblaze restore rehearsal → Run workflow.
+
+
+## 39. Self-hosted application recovery drill PASSED (2026-11-05 Pacific)
+
+Workflow `.github/workflows/backblaze-app-recovery.yml` restores the latest Backblaze archive, then starts local Auth (supabase/gotrue v2.197.0), PostgREST (v14.18) and Storage API (v1.89.12) against disposable PostgreSQL 17. Internal Docker network has no Internet egress; loopback-only frontend proxy reaches private container addresses. Only Backblaze secrets are provided to the job; production Supabase credentials are absent. The browser blocks production/external requests except jsDelivr script assets. Source URL and anonymous key are replaced only in the recovered temporary app.js response.
+
+Successful Actions run: **42136725105**. Verified:
+- Latest database/source/file backup restoration.
+- All 15 uploaded files re-uploaded via local Storage API and read back with matching SHA-256.
+- New temporary owner/viewer users created through local Auth admin API and password login tested.
+- Viewer assigned-site read succeeds; viewer equipment edit and Record Service RPC are denied by restored RLS/backend logic.
+- Owner records a disposable service through PostgREST; saved equipment hours and baseline timestamp update correctly.
+- Recovered tracker opens in headless installed Chrome; owner and viewer login, equipment page opening, viewer edit-control removal, and working-day PM runtime calculation pass.
+- Containers, private network, generated test credentials and recovered data are deleted after the job. No production records changed.
+
+Recovery prerequisites discovered: PostgreSQL roles/grants/search paths are outside the selected-schema dump. The harness recreates local roles/grants, and Auth/Storage use explicit auth/public/extensions and storage/public/extensions search paths. Initial default search path caused Auth to attempt replaying existing migrations; explicit paths fixed it. Browser installation uses a bounded isolated npm package install; installed Chrome avoids slow system-font downloads. Final browser selector targets Sign in explicitly.
+
+Code: scripts/app_recovery_test.py, scripts/recovery_browser_test.cjs; optional RESTORE_APPLICATION_TEST hook in restore_backup_test.py. Manual re-run: Actions → Local application recovery test → Run workflow. No recurring application test is scheduled. Database-only restore retains network-none isolation.
+
+Scope: real local Auth/REST/Storage and browser smoke coverage, not every screen/role/operation. Does not test real email/SMS, external map services, hosted platform provisioning, DNS, production keys, or production failover. Test environment grants are explicit reconstruction steps, not restoration of original ACLs (archive omits ownership/privileges).

@@ -46,3 +46,16 @@ Recovered 13 equipment, 2 sites, 4 profiles, 1 service record, 10 PM schedules a
 Re-run via **Actions → Backblaze restore rehearsal → Run workflow**. No recurring restore test is scheduled. Container and temporary backup copies are deleted afterward.
 
 This validates data/source/file recovery. Hosted sign-in, managed Supabase configuration, SMTP, API redeployment, Storage API re-upload and production failover were not tested. The test recreates necessary local roles/extensions and adds local grants because ownership/ACL statements are intentionally excluded from the dump.
+
+
+## Local application recovery verified — November 5, 2026 (Pacific)
+
+**PASS:** [Actions run 42136725105](https://github.com/fearincognito/forged-field-pm-tracker-v3/actions/runs/42136725105).
+
+A temporary self-hosted Auth/REST/Storage stack was started against the restored backup. All 15 image files were uploaded and downloaded through its Storage API and checksum-verified. Temporary owner/viewer accounts signed in; restored permission checks blocked viewer writes; owner service recording updated the equipment meter and estimate baseline. The recovered frontend was opened in Chrome for owner/viewer login, equipment viewing, viewer-control checks and PM working-day calculation.
+
+Run again via **Actions → Local application recovery test → Run workflow**. The job receives only B2 credentials; local test accounts/tokens are generated at runtime and deleted with the containers. No separate cloud project is created. Only a recovered temporary copy of frontend configuration is changed.
+
+Auth and Storage require their appropriate database search paths. The harness supplies these explicitly and reconstructs local roles/grants/extensions; the backup intentionally omits ownership and ACL restoration statements. Production recovery must apply equivalent platform setup before testing.
+
+This is a functioning local application recovery smoke test, not exhaustive coverage or a hosted production switchover. Real email/SMS, external services, production keys/DNS and cloud provisioning remain outside its scope.
