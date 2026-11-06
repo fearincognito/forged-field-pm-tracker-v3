@@ -28,4 +28,4 @@ const {chromium}=require('playwright');
    await context.close();
   }
  }finally{await browser.close();}
-})().catch(error=>{let reason='BROWSER_CHECK_FAILED';if(String(error.message).includes('Timeout'))reason='BROWSER_SELECTOR_TIMEOUT';if(String(error.message).includes('Executable'))reason='BROWSER_EXECUTABLE_MISSING';if(String(error.message).includes('dependencies'))reason='BROWSER_DEPENDENCIES_MISSING';console.error(reason);process.exit(1);});
+})().catch(error=>{let reason='BROWSER_CHECK_FAILED';if(String(error.message).includes('Timeout'))reason='BROWSER_SELECTOR_TIMEOUT';if(String(error.message).includes('Executable'))reason='BROWSER_EXECUTABLE_MISSING';if(String(error.message).includes('dependencies'))reason='BROWSER_DEPENDENCIES_MISSING';let message=String(error.message).split('\n')[0].slice(0,400);try{const cfg=JSON.parse(fs.readFileSync(process.env.RECOVERY_BROWSER_CONFIG,'utf8'));for(const user of [cfg.owner,cfg.viewer])for(const value of Object.values(user))if(typeof value==='string'&&value)message=message.split(value).join('[test-value]');}catch{}console.error(reason+': '+message);process.exit(1);});

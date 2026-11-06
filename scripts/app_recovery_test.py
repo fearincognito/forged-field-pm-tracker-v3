@@ -155,7 +155,8 @@ def application_test(root, restored, database_container, psql, storage):
         if result.returncode:
             diagnostics=result.stderr.decode(errors='replace')
             reason=next((item for item in ['BROWSER_SELECTOR_TIMEOUT','BROWSER_EXECUTABLE_MISSING','BROWSER_DEPENDENCIES_MISSING','BROWSER_CHECK_FAILED'] if item in diagnostics),'BROWSER_PROCESS_FAILED')
-            raise BackupError('Recovered frontend browser checks failed: '+reason)
+            safe_line=next((line for line in diagnostics.splitlines() if line.startswith(reason+': ')),reason)
+            raise BackupError('Recovered frontend browser checks failed: '+safe_line)
         print('Recovered frontend browser login, equipment view and PM runtime calculation passed.',flush=True)
         return 'Local application recovery PASSED: Auth login, REST access, viewer write denial, service recording/meter reset, '+str(len(storage['objects']))+' Storage API upload/readbacks and recovered frontend browser checks.'
     finally:
