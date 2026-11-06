@@ -661,3 +661,15 @@ Scheduled-PM completion including due-hour progression, service inventory deduct
 
 ### Resume instruction
 Read the current PROJECT_HANDOFF.md in fearincognito/forged-field-pm-tracker-v3, fetch the latest repository state, and continue editing V3. Do not touch V2. Before modifying source, inspect the live default-branch version rather than relying on stale local commits. Preserve existing real equipment/service data and role enforcement. This checkpoint is a project summary, not a verbatim chat transcript.
+
+
+## 42. PM email + phone push notification foundation (2026-11-05 Pacific)
+
+Owner requested automatic email and phone push notifications as PM approaches/due, with V2 untouched and no duplicate alerts. V3 implementation committed to main:
+
+- DB migration `pm_notification_delivery_foundation`: new RLS-protected `pm_notification_preferences`, `pm_push_subscriptions`, `pm_notification_delivery`, and `pm_notification_config` tables. Self-only preference/subscription access; logged deliveries recipient read-only; config public VAPID key read-only to enabled users. No original maintenance/service/equipment data modified. Live policy check confirmed 3/4/1/1 policies for preferences/subscriptions/delivery/config; delivery log initially 0 rows.
+- Frontend `pm_notifications.js` loaded last from `index.html`; a dashboard PM Notification Settings card appears to Owner/Admin/Mechanic. Users may save email/push preference and register/remove their own browser push subscription. `pm-sw.js` displays push notifications and opens the scoped V3 page. Installable `manifest.webmanifest` + iPhone web-app meta tags added. On iPhone, install from Safari via Add to Home Screen to request push permission.
+- Server `scripts/pm_notifications.py` + daily GitHub workflow `.github/workflows/pm-notifications.yml` (15:17 UTC). Uses rotation-adjusted estimated hours with the existing 50/20/due thresholds; only active Owner/Admin/Mechanic accounts are eligible; archived sites/equipment excluded. Email through Resend; Web Push through pywebpush VAPID. Email requests have deterministic idempotency keys; a unique database index constrains threshold-per-due-cycle-per-recipient-per-channel/device. Failed deliveries retry; unexpected pending states require reconciliation to avoid duplicate sends.
+- Regression source `tests/pm_notifications_test.py`; `.github/workflows/pm-notifications-tests.yml` runs syntax/threshold/rotation checks on commits. Setup and limitations documented in `PM_NOTIFICATIONS.md`.
+
+**Not yet live for delivery**: `PM_ALERTS_ENABLED` repository variable intentionally not set to `true` until administrator creates/verifies Resend sender/API key, VAPID pair, secrets, publishes matching public VAPID key in DB config, registers an iPhone and performs a real end-to-end delivery test. Workflow job is gated to skip while not enabled; no email or push was sent during implementation. Credentials remain outside source/repo; never request private credentials in chat. Current user should be guided one setup step at a time. Do not claim delivery is complete until live tests succeed. V2 untouched.
