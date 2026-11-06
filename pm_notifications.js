@@ -6,7 +6,7 @@
     const result = base.apply(this, args);
     queueMicrotask(() => {
       const grid = appView?.querySelector(".grid");
-      if (!grid || !currentUser || grid.querySelector("#pmNotifyCard")) return;
+      if (!grid || !currentUser || !["owner","admin","mechanic"].includes(currentProfile?.role) || grid.querySelector("#pmNotifyCard")) return;
       const card = document.createElement("section");
       card.id = "pmNotifyCard";
       card.className = "card";
