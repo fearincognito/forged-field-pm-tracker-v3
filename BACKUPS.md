@@ -59,3 +59,17 @@ Run again via **Actions → Local application recovery test → Run workflow**. 
 Auth and Storage require their appropriate database search paths. The harness supplies these explicitly and reconstructs local roles/grants/extensions; the backup intentionally omits ownership and ACL restoration statements. Production recovery must apply equivalent platform setup before testing.
 
 This is a functioning local application recovery smoke test, not exhaustive coverage or a hosted production switchover. Real email/SMS, external services, production keys/DNS and cloud provisioning remain outside its scope.
+
+
+## Retention policy — configured November 5, 2026 (Pacific)
+
+After each successful full-archive upload and download checksum check, the backup job writes a private verification marker. It then keeps:
+- Every archive version uploaded within the previous 30 days, including the exact cutoff.
+- One archive per UTC calendar month for the current month and previous 11 months. The newest verified archive in that month is selected; older unmarked archives are a fallback only where no verified monthly copy exists.
+- The newly verified archive unconditionally.
+
+Daily and monthly copies overlap; this does not create duplicate archives. As months pass, monthly snapshots advance to the latest verified copy from each month.
+
+Only exact timestamp/run-shaped archive names under forged-pm/ and associated verification marker versions are eligible for cleanup. Other bucket objects and hide markers are untouched. Deletion uses exact file version IDs and never bypasses Object Lock. Listing is fully paginated. No pruning occurs after an unsuccessful export, upload, or verification; missing permissions or a missing new verification marker stop cleanup. Retention is in the workflow, not a bucket-wide lifecycle expiration rule.
+
+Tests: tests/backup_retention_test.py covers 30-day cutoff, monthly/year boundaries, exact-version duplicates, verified-copy preference, protection of unrelated objects, and failure without current verification. Actions failure notifications were enabled by the owner.

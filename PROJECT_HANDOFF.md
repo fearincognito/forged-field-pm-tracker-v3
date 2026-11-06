@@ -630,3 +630,12 @@ Recovery prerequisites discovered: PostgreSQL roles/grants/search paths are outs
 Code: scripts/app_recovery_test.py, scripts/recovery_browser_test.cjs; optional RESTORE_APPLICATION_TEST hook in restore_backup_test.py. Manual re-run: Actions → Local application recovery test → Run workflow. No recurring application test is scheduled. Database-only restore retains network-none isolation.
 
 Scope: real local Auth/REST/Storage and browser smoke coverage, not every screen/role/operation. Does not test real email/SMS, external map services, hosted platform provisioning, DNS, production keys, or production failover. Test environment grants are explicit reconstruction steps, not restoration of original ACLs (archive omits ownership/privileges).
+
+
+## 40. Backup retention configured (2026-11-05 Pacific)
+
+Owner approved 30 days of daily backups plus 12 monthly copies. Retention is implemented in scripts/backup_to_b2.py after successful full upload/readback SHA-256 verification. Each verified backup gets an encrypted private .verified.json sidecar with the archive version ID and checksum. All archives within 30 days are kept; one monthly archive is kept for current UTC month + previous 11 months, preferring latest verified snapshot over unmarked legacy uploads. Current verified archive is always kept. Daily/monthly copies overlap.
+
+Cleanup paginates B2 file versions and permanently deletes exact expired archive IDs and related marker IDs only. Strict namespace/name matching protects unrelated bucket objects. No hide-marker deletion, bucket-wide expiration, or Object Lock bypass. Missing listFiles/deleteFiles capabilities or missing current archive/marker stops cleanup; failed backup export/upload/readback never reaches pruning. User-enabled GitHub Actions failure email is the notification path.
+
+Tests: tests/backup_retention_test.py, four focused tests for day/month/year cutoffs, duplicate versions, unknown file protection, verified monthly preference and verification-required fail-closed behaviour. Deployment run verification pending when this entry was written.

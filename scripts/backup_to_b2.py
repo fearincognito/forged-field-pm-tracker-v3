@@ -4,6 +4,7 @@ import datetime as dt
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -150,6 +151,79 @@ def export_storage(root, inventory):
 
 
 
+BACKUP_NAME_PATTERN = re.compile(r'^forged-pm/\d{4}/\d{2}/\d{8}T\d{6}Z-\d+-\d+\.tar\.gz$')
+
+
+def retention_plan(versions, now, current_id):
+    """Keep every archive from 30 days, plus newest verified per UTC month for 12 months.
+    Legacy archives without markers remain eligible as monthly fallback. Unknown files are untouched.
+    """
+    archives = [f for f in versions if f.get('action') == 'upload' and BACKUP_NAME_PATTERN.fullmatch(f.get('fileName', ''))]
+    markers = [f for f in versions if f.get('action') == 'upload'
+               and f.get('fileName', '').endswith('.verified.json')
+               and BACKUP_NAME_PATTERN.fullmatch(f['fileName'][:-len('.verified.json')])]
+    verified = {f.get('fileInfo', {}).get('backup-file-id') for f in markers}
+    if current_id not in verified or not any(f['fileId'] == current_id for f in archives):
+        raise BackupError('Retention stopped: newly verified archive/marker was not found. Backups preserved.')
+    cutoff = now - dt.timedelta(days=30)
+    keep = {current_id}
+    months = {}
+    for f in archives:
+        stamp = dt.datetime.fromtimestamp(f['uploadTimestamp'] / 1000, dt.timezone.utc)
+        if stamp >= cutoff:
+            keep.add(f['fileId'])
+        age = (now.year * 12 + now.month) - (stamp.year * 12 + stamp.month)
+        if 0 <= age < 12:
+            key = (stamp.year, stamp.month)
+            # A verified copy always outranks an older unmarked legacy upload.
+            score = (f['fileId'] in verified, f['uploadTimestamp'], f['fileId'])
+            if key not in months or score > months[key][0]:
+                months[key] = (score, f['fileId'])
+    keep.update(value[1] for value in months.values())
+    expired = [f for f in archives if f['fileId'] not in keep]
+    deleted_ids = {f['fileId'] for f in expired}
+    expired_markers = [f for f in markers if f.get('fileInfo', {}).get('backup-file-id') in deleted_ids]
+    return {'archives': expired, 'markers': expired_markers, 'keep_count': len(keep), 'monthly_count': len(months)}
+
+
+def mark_verified_and_prune(api, token, bucket_id, saved, expected, now):
+    allowed = api.get('allowed', {}).get('capabilities', [])
+    if 'deleteFiles' not in allowed or 'listFiles' not in allowed:
+        raise BackupError('Backup verified, but retention needs listFiles and deleteFiles permissions on the B2 application key.')
+    marker = json.dumps({'file_id': saved['fileId'], 'sha256': expected, 'verified_at': now.isoformat()}).encode()
+    upload = request_json(api['apiUrl'] + '/b2api/v2/b2_get_upload_url', token, {'bucketId': bucket_id})
+    headers = {'Authorization': upload['authorizationToken'], 'Content-Type': 'application/json',
+               'X-Bz-File-Name': urllib.parse.quote(saved['fileName'] + '.verified.json', safe='/'),
+               'X-Bz-Content-Sha1': hashlib.sha1(marker).hexdigest(), 'X-Bz-Server-Side-Encryption': 'AES256',
+               'X-Bz-Info-backup-file-id': saved['fileId']}
+    try:
+        with urllib.request.urlopen(urllib.request.Request(upload['uploadUrl'], data=marker, headers=headers), timeout=120) as response:
+            result = json.load(response)
+        if result.get('contentSha1') != hashlib.sha1(marker).hexdigest():
+            raise BackupError('Verification marker upload failed. No retention deletion performed.')
+    except urllib.error.HTTPError as error:
+        raise BackupError(f'Backup verified, but retention marker failed with HTTP {error.code}. No older copies deleted.') from None
+    versions = []
+    cursor_name = cursor_id = None
+    while True:
+        params = {'bucketId': bucket_id, 'prefix': 'forged-pm/', 'maxFileCount': 1000}
+        if cursor_name:
+            params.update({'startFileName': cursor_name, 'startFileId': cursor_id})
+        page = request_json(api['apiUrl'] + '/b2api/v2/b2_list_file_versions', token, params)
+        versions.extend(page['files'])
+        cursor_name, cursor_id = page.get('nextFileName'), page.get('nextFileId')
+        if not cursor_name:
+            break
+    plan = retention_plan(versions, now, saved['fileId'])
+    # Remove exact version IDs only; do not create hide markers or bypass Object Lock.
+    for item in plan['archives'] + plan['markers']:
+        request_json(api['apiUrl'] + '/b2api/v2/b2_delete_file_version', token,
+                     {'fileName': item['fileName'], 'fileId': item['fileId']})
+    summary = f"Retention: kept {plan['keep_count']} archive versions; removed {len(plan['archives'])} expired archives and {len(plan['markers'])} related verification markers."
+    print(summary, flush=True)
+    return summary
+
+
 def main():
     required = ['SUPABASE_DB_URL', 'B2_APPLICATION_KEY_ID', 'B2_APPLICATION_KEY', 'B2_BUCKET_NAME', 'SUPABASE_SERVICE_ROLE_KEY']
     for name in required:
@@ -216,7 +290,7 @@ def main():
                     'storage_file_bytes_included': True, 'storage': storage,
                     'limitations': ['Database and Storage exports are sequential, not a single transactional snapshot.',
                                     'Restore into a compatible Supabase project; managed roles/extensions/platform settings are not included.',
-                                    'Archive readability verified; a full restore rehearsal is still required.']}
+                                    'Archive checksum verified; database and local application recovery rehearsals are documented in BACKUPS.md.']}
         (root / 'manifest.json').write_text(json.dumps(metadata, indent=2))
         bundle = root / 'backup.tar.gz'
         with tarfile.open(bundle, 'w:gz') as tar:
@@ -244,7 +318,8 @@ def main():
                 raise BackupError('Backblaze download verification failed.')
         except urllib.error.HTTPError as e:
             raise BackupError(f'Backblaze upload/verification returned HTTP {e.code}.') from None
-        summary = f"Database + source + Storage backup uploaded and download checksum verified.\n\nSize: {len(data):,} bytes.\n\nStorage files included: {storage['file_count']}.\n"
+        retention = mark_verified_and_prune(api, token, bucket_id, saved, expected, dt.datetime.now(dt.timezone.utc))
+        summary = f"Database + source + Storage backup uploaded and download checksum verified.\n\nSize: {len(data):,} bytes.\n\nStorage files included: {storage['file_count']}.\n\n{retention}\n"
         print(summary)
         if os.environ.get('GITHUB_STEP_SUMMARY'):
             with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
