@@ -19,7 +19,7 @@ from backup_to_b2 import BackupError, sha256
 
 def application_test(root, restored, database_container, psql, storage):
     from restore_backup_test import command
-    suffix=secrets.token_hex(4); network='recovery-'+suffix; containers=[]
+    suffix=secrets.token_hex(4); network=database_container+'-net'; containers=[]
     secret=secrets.token_urlsafe(48)
     def token(role):
         enc=lambda x:base64.urlsafe_b64encode(json.dumps(x,separators=(',',':')).encode()).decode().rstrip('=')
@@ -55,8 +55,6 @@ def application_test(root, restored, database_container, psql, storage):
     def check(condition,message):
         if not condition:raise BackupError('Application recovery check failed: '+message)
     try:
-        command(['docker','network','create','--internal',network])
-        command(['docker','network','connect','--alias','db',network,database_container])
         command(psql,b"alter role service_role bypassrls; grant anon,authenticated,service_role to postgres; grant usage on schema public,auth,storage,extensions to anon,authenticated,service_role; grant all on all tables in schema public,storage to service_role; grant all on all sequences in schema public,storage to service_role; grant select,insert,update,delete on all tables in schema public to authenticated; grant usage on all sequences in schema public to authenticated; grant execute on all functions in schema public to authenticated,service_role;")
         start('rest','postgrest/postgrest:v14.18',55301,{'PGRST_DB_URI':'postgres://postgres@db:5432/postgres','PGRST_DB_SCHEMAS':'public,storage','PGRST_DB_ANON_ROLE':'anon','PGRST_JWT_SECRET':secret,'PGRST_DB_EXTRA_SEARCH_PATH':'public,extensions','PGRST_DB_USE_LEGACY_GUCS':'false'})
         start('auth','supabase/gotrue:v2.197.0',55302,{'GOTRUE_API_HOST':'0.0.0.0','PORT':9999,'GOTRUE_API_PORT':9999,'API_EXTERNAL_URL':'http://127.0.0.1:55300/auth/v1','GOTRUE_DB_DRIVER':'postgres','GOTRUE_DB_DATABASE_URL':'postgres://postgres@db:5432/postgres','GOTRUE_SITE_URL':'http://127.0.0.1:55300','GOTRUE_JWT_SECRET':secret,'GOTRUE_JWT_EXP':3600,'GOTRUE_JWT_AUD':'authenticated','GOTRUE_JWT_DEFAULT_GROUP_NAME':'authenticated','GOTRUE_JWT_ADMIN_ROLES':'service_role','GOTRUE_EXTERNAL_EMAIL_ENABLED':'true','GOTRUE_MAILER_AUTOCONFIRM':'true','GOTRUE_DISABLE_SIGNUP':'true','GOTRUE_LOG_LEVEL':'error'})

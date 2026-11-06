@@ -96,7 +96,9 @@ def main():
             if not (source_dir/'index.html').is_file() or not (source_dir/'app.js').is_file():
                 raise BackupError('Recovered source is missing application entry points.')
             # No ports are published and the container has no network access.
-            command(['docker','run','-d','--name',container,'--network','none','-e','POSTGRES_HOST_AUTH_METHOD=trust','postgres:17'])
+            network = container+'-net' if os.environ.get('RESTORE_APPLICATION_TEST') == '1' else 'none'
+            if network != 'none': command(['docker','network','create','--internal',network])
+            command(['docker','run','-d','--name',container,'--network',network,'--network-alias','db','-e','POSTGRES_HOST_AUTH_METHOD=trust','postgres:17'])
             ready=False
             for _ in range(60):
                 result=subprocess.run(['docker','exec',container,'pg_isready','-U','postgres'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
@@ -154,6 +156,7 @@ def main():
                 with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:f.write('## Disposable backup restore test\n\n'+summary)
     finally:
         subprocess.run(['docker','rm','-f','-v',container],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        subprocess.run(['docker','network','rm',container+'-net'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
 
 
 if __name__=='__main__':
