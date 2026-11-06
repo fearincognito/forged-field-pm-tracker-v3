@@ -1,0 +1,21 @@
+name: V3 PM notification code checks
+on:
+  push:
+    paths:
+      - 'scripts/pm_notifications.py'
+      - 'tests/pm_notifications_test.py'
+      - '.github/workflows/pm-notifications-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m py_compile scripts/pm_notifications.py
+      - run: python -m unittest discover -s tests -p pm_notifications_test.py -v
