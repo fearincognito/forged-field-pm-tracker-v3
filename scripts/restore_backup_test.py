@@ -142,6 +142,12 @@ def main():
             do $$ begin if not public.is_admin() or not exists(select 1 from public.equipment) then raise exception 'Owner access failed'; end if; end $$;
             reset role;"""
             command(psql,permissions)
+            if os.environ.get('RESTORE_APPLICATION_TEST') == '1':
+                from app_recovery_test import application_test
+                app_summary = application_test(root, restored, container, psql, storage)
+                print(app_summary, flush=True)
+                if os.environ.get('GITHUB_STEP_SUMMARY'):
+                    with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write('## Local application recovery\n\n'+app_summary+'\n')
             summary='Restore rehearsal PASSED.\n\n'+json.dumps(counts,indent=2)+'\n\nRecovered and checksum-verified '+str(len(storage['objects']))+' uploaded files plus application source.\n\nLive Supabase was not connected to or modified. This tests data/source/file recovery, not hosted sign-in, deployed APIs, or a production cutover.\n'
             print(summary)
             if os.environ.get('GITHUB_STEP_SUMMARY'):
