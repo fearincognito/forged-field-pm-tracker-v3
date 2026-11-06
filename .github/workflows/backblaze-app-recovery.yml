@@ -11,7 +11,7 @@ permissions:
   contents: read
 concurrency:
   group: local-application-recovery
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   local-app-test:
     runs-on: ubuntu-24.04
@@ -22,13 +22,15 @@ jobs:
         with:
           persist-credentials: false
       - name: Install temporary browser test dependencies
+        timeout-minutes: 5
         run: |
-          npm install --no-save --package-lock=false playwright@1.56.1
-          npx playwright install --with-deps chromium
+          npm install --prefix /tmp/recovery-browser --no-save --package-lock=false --ignore-scripts --no-audit --no-fund --fetch-retries=1 --fetch-timeout=30000 playwright@1.56.1
+          node /tmp/recovery-browser/node_modules/playwright/cli.js install chromium
       - name: Restore and exercise isolated application
         env:
           B2_APPLICATION_KEY_ID: ${{ secrets.B2_APPLICATION_KEY_ID }}
           B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
           B2_BUCKET_NAME: ${{ secrets.B2_BUCKET_NAME }}
           RESTORE_APPLICATION_TEST: '1'
+          NODE_PATH: /tmp/recovery-browser/node_modules
         run: python3 scripts/restore_backup_test.py
