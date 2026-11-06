@@ -48,13 +48,27 @@ def application_test(root, restored, database_container, psql, storage):
             with urllib.request.urlopen(req,timeout=30) as r:return r.status,r.read()
         except urllib.error.HTTPError as e:return e.code,e.read()
     def wait(port,path,label):
-        for _ in range(75):
+        for _ in range(35):
             try:
                 status,_=api(port,path)
                 if status<400:return
             except (OSError,TimeoutError):pass
             time.sleep(1)
-        # Logs intentionally suppressed because restored data could appear in service logs.
+        # Startup-only diagnostics, before test-user creation or restored-data API writes.
+        target='recovery-'+label.lower()+'-'+suffix
+        logs=subprocess.run(['docker','logs',target],stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.decode(errors='replace')
+        logs=logs.replace(secret,'[test-secret]').replace(service,'[test-token]').replace(anon,'[test-token]')
+        logs=re.sub(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+', '[redacted-address]', logs)
+        logs=re.sub(r'postgres(?:ql)?://[^\\s"\\']+', '[database-url]', logs)
+        safe=[]
+        for line in logs.splitlines():
+            try:
+                entry=json.loads(line)
+                if entry.get('level') in ['fatal','error']:
+                    safe.append(str(entry.get('msg',''))[:500])
+            except ValueError:
+                pass
+        if safe: print('Startup diagnostic ('+label+'): '+'; '.join(safe[-2:]),flush=True)
         raise BackupError('Local '+label+' service did not become healthy.')
     def check(condition,message):
         if not condition:raise BackupError('Application recovery check failed: '+message)
