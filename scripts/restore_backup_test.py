@@ -98,7 +98,8 @@ def main():
             # No ports are published and the container has no network access.
             network = container+'-net' if os.environ.get('RESTORE_APPLICATION_TEST') == '1' else 'none'
             if network != 'none': command(['docker','network','create','--internal',network])
-            command(['docker','run','-d','--name',container,'--network',network,'--network-alias','db','-e','POSTGRES_HOST_AUTH_METHOD=trust','postgres:17'])
+            network_options=['--network',network]+(['--network-alias','db'] if network!='none' else [])
+            command(['docker','run','-d','--name',container]+network_options+['-e','POSTGRES_HOST_AUTH_METHOD=trust','postgres:17'])
             ready=False
             for _ in range(60):
                 result=subprocess.run(['docker','exec',container,'pg_isready','-U','postgres'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)

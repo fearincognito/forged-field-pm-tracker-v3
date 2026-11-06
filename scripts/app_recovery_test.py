@@ -20,6 +20,7 @@ from backup_to_b2 import BackupError, sha256
 def application_test(root, restored, database_container, psql, storage):
     from restore_backup_test import command
     suffix=secrets.token_hex(4); network=database_container+'-net'; containers=[]
+    endpoints={}
     secret=secrets.token_urlsafe(48)
     def token(role):
         enc=lambda x:base64.urlsafe_b64encode(json.dumps(x,separators=(',',':')).encode()).decode().rstrip('=')
@@ -34,12 +35,15 @@ def application_test(root, restored, database_container, psql, storage):
         args.append(image)
         result=subprocess.run(args,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
         if result.returncode:raise BackupError('Could not start local '+name+' service.')
+        info=json.loads(command(['docker','inspect',container]))[0]
+        endpoints[port]=(info['NetworkSettings']['Networks'][network]['IPAddress'], {'auth':9999,'rest':3000,'storage':5000}[name])
     def api(port,path,payload=None,jwt=None,method=None,raw=None,extra=None):
         headers={'apikey':service,'Authorization':'Bearer '+(jwt or service)}
         data=raw
         if payload is not None:data=json.dumps(payload).encode();headers['Content-Type']='application/json'
         if extra:headers.update(extra)
-        req=urllib.request.Request('http://127.0.0.1:'+str(port)+path,data=data,headers=headers,method=method)
+        host,target_port=endpoints[port]
+        req=urllib.request.Request('http://'+host+':'+str(target_port)+path,data=data,headers=headers,method=method)
         try:
             with urllib.request.urlopen(req,timeout=30) as r:return r.status,r.read()
         except urllib.error.HTTPError as e:return e.code,e.read()
@@ -107,7 +111,8 @@ def application_test(root, restored, database_container, psql, storage):
                     if self.path.startswith(prefix):
                         body=self.rfile.read(int(self.headers.get('Content-Length',0))) if self.headers.get('Content-Length') else None
                         headers={k:v for k,v in self.headers.items() if k.lower() not in ['host','content-length','connection','accept-encoding']}
-                        req=urllib.request.Request('http://127.0.0.1:'+str(port)+self.path[len(prefix):],data=body,headers=headers,method=self.command)
+                        host,target_port=endpoints[port]
+                        req=urllib.request.Request('http://'+host+':'+str(target_port)+self.path[len(prefix):],data=body,headers=headers,method=self.command)
                         try:r=urllib.request.urlopen(req,timeout=30)
                         except urllib.error.HTTPError as e:r=e
                         self.send_response(r.status)
