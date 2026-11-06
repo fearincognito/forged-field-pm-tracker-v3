@@ -65,7 +65,7 @@ def application_test(root, restored, database_container, psql, storage):
             try:
                 entry=json.loads(line)
                 if entry.get('level') in ['fatal','error']:
-                    safe.append(str(entry.get('msg',''))[:500])
+                    safe.append(str(entry.get('msg',''))[-500:])
             except ValueError:
                 pass
         if safe: print('Startup diagnostic ('+label+'): '+'; '.join(safe[-2:]),flush=True)
@@ -75,8 +75,8 @@ def application_test(root, restored, database_container, psql, storage):
     try:
         command(psql,b"alter role service_role bypassrls; grant anon,authenticated,service_role to postgres; grant usage on schema public,auth,storage,extensions to anon,authenticated,service_role; grant all on all tables in schema public,storage to service_role; grant all on all sequences in schema public,storage to service_role; grant select,insert,update,delete on all tables in schema public to authenticated; grant usage on all sequences in schema public to authenticated; grant execute on all functions in schema public to authenticated,service_role;")
         start('rest','postgrest/postgrest:v14.18',55301,{'PGRST_DB_URI':'postgres://postgres@db:5432/postgres','PGRST_DB_SCHEMAS':'public,storage','PGRST_DB_ANON_ROLE':'anon','PGRST_JWT_SECRET':secret,'PGRST_DB_EXTRA_SEARCH_PATH':'public,extensions','PGRST_DB_USE_LEGACY_GUCS':'false'})
-        start('auth','supabase/gotrue:v2.197.0',55302,{'GOTRUE_API_HOST':'0.0.0.0','PORT':9999,'GOTRUE_API_PORT':9999,'API_EXTERNAL_URL':'http://127.0.0.1:55300/auth/v1','GOTRUE_DB_DRIVER':'postgres','GOTRUE_DB_DATABASE_URL':'postgres://postgres@db:5432/postgres','GOTRUE_SITE_URL':'http://127.0.0.1:55300','GOTRUE_JWT_SECRET':secret,'GOTRUE_JWT_EXP':3600,'GOTRUE_JWT_AUD':'authenticated','GOTRUE_JWT_DEFAULT_GROUP_NAME':'authenticated','GOTRUE_JWT_ADMIN_ROLES':'service_role','GOTRUE_EXTERNAL_EMAIL_ENABLED':'true','GOTRUE_MAILER_AUTOCONFIRM':'true','GOTRUE_DISABLE_SIGNUP':'true','GOTRUE_LOG_LEVEL':'error'})
-        start('storage','supabase/storage-api:v1.89.12',55303,{'ANON_KEY':anon,'SERVICE_KEY':service,'AUTH_JWT_SECRET':secret,'POSTGREST_URL':'http://rest:3000','DATABASE_URL':'postgres://postgres@db:5432/postgres','FILE_SIZE_LIMIT':52428800,'STORAGE_BACKEND':'file','FILE_STORAGE_BACKEND_PATH':'/var/lib/storage','TENANT_ID':'recovery','REGION':'local','GLOBAL_S3_BUCKET':'recovery','ENABLE_IMAGE_TRANSFORMATION':'false','LOG_LEVEL':'fatal','STORAGE_PUBLIC_URL':'http://127.0.0.1:55300'})
+        start('auth','supabase/gotrue:v2.197.0',55302,{'GOTRUE_API_HOST':'0.0.0.0','PORT':9999,'GOTRUE_API_PORT':9999,'API_EXTERNAL_URL':'http://127.0.0.1:55300/auth/v1','GOTRUE_DB_DRIVER':'postgres','GOTRUE_DB_DATABASE_URL':'postgres://postgres@db:5432/postgres?search_path=auth,public,extensions','GOTRUE_SITE_URL':'http://127.0.0.1:55300','GOTRUE_JWT_SECRET':secret,'GOTRUE_JWT_EXP':3600,'GOTRUE_JWT_AUD':'authenticated','GOTRUE_JWT_DEFAULT_GROUP_NAME':'authenticated','GOTRUE_JWT_ADMIN_ROLES':'service_role','GOTRUE_EXTERNAL_EMAIL_ENABLED':'true','GOTRUE_MAILER_AUTOCONFIRM':'true','GOTRUE_DISABLE_SIGNUP':'true','GOTRUE_LOG_LEVEL':'error'})
+        start('storage','supabase/storage-api:v1.89.12',55303,{'ANON_KEY':anon,'SERVICE_KEY':service,'AUTH_JWT_SECRET':secret,'POSTGREST_URL':'http://rest:3000','DATABASE_URL':'postgres://postgres@db:5432/postgres?search_path=storage,public,extensions','FILE_SIZE_LIMIT':52428800,'STORAGE_BACKEND':'file','FILE_STORAGE_BACKEND_PATH':'/var/lib/storage','TENANT_ID':'recovery','REGION':'local','GLOBAL_S3_BUCKET':'recovery','ENABLE_IMAGE_TRANSFORMATION':'false','LOG_LEVEL':'fatal','STORAGE_PUBLIC_URL':'http://127.0.0.1:55300'})
         wait(55301,'/equipment?select=id&limit=1','REST')
         wait(55302,'/health','Auth')
         wait(55303,'/status','Storage')
