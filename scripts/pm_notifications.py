@@ -32,15 +32,15 @@ def estimate(equipment,site,today):
         day+=dt.timedelta(days=1)
     return round(actual+days*daily,1)
 
-def tier(remaining,today):
+def tier(remaining,today=None):
     if remaining<=0:return "due"
     if remaining<=20:return "20"
     if remaining<=50:return "50"
     return None
 
-def send_email(to,subject,body):
+def send_email(to,subject,body,event_id):
     import requests
-    headers={"Authorization":"Bearer "+os.environ["RESEND_API_KEY"],"Content-Type":"application/json"}
+    headers={"Authorization":"Bearer "+os.environ["RESEND_API_KEY"],"Content-Type":"application/json","Idempotency-Key":f"forged-pm-v3-{event_id}"}
     # Resend only receives the correct destination's email (never logged).
     response=requests.post("https://api.resend.com/emails",headers=headers,json={
       "from":os.environ["PM_EMAIL_FROM"],"to":[to],"subject":subject,"text":body},timeout=25)
@@ -132,7 +132,7 @@ def main():
                     identity=reserve(conn,user["id"],rec["schedule_id"],rec["next_due_hours"],level,channel,dest)
                     if identity is None:continue
                     try:
-                        if channel=="email":send_email(user["email"],title,body)
+                        if channel=="email":send_email(user["email"],title,body,identity)
                         else:send_push(sub,title,body,f"{rec['schedule_id']}:{due:g}:{level}")
                         mark(conn,identity,"sent")
                         sent+=1
