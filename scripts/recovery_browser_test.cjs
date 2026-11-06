@@ -2,7 +2,7 @@ const fs=require('fs');
 const {chromium}=require('playwright');
 (async()=>{
  const config=JSON.parse(fs.readFileSync(process.env.RECOVERY_BROWSER_CONFIG,'utf8'));
- const browser=await chromium.launch({headless:true});
+ const browser=await chromium.launch({headless:true,channel:'chrome'});
  try{
   for(const [role,creds] of [['owner',config.owner],['viewer',config.viewer]]){
    const context=await browser.newContext();
@@ -28,4 +28,4 @@ const {chromium}=require('playwright');
    await context.close();
   }
  }finally{await browser.close();}
-})().catch(()=>process.exit(1));
+})().catch(error=>{let reason='BROWSER_CHECK_FAILED';if(String(error.message).includes('Timeout'))reason='BROWSER_SELECTOR_TIMEOUT';if(String(error.message).includes('Executable'))reason='BROWSER_EXECUTABLE_MISSING';if(String(error.message).includes('dependencies'))reason='BROWSER_DEPENDENCIES_MISSING';console.error(reason);process.exit(1);});

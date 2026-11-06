@@ -152,7 +152,10 @@ def application_test(root, restored, database_container, psql, storage):
         settings=root/'browser-test.json';settings.write_text(json.dumps({'owner':owner,'viewer':viewer,'equipment':machine}))
         env=os.environ.copy();env['RECOVERY_BROWSER_CONFIG']=str(settings)
         result=subprocess.run(['node','scripts/recovery_browser_test.cjs'],env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-        if result.returncode:raise BackupError('Recovered frontend browser checks failed (sensitive browser output suppressed).')
+        if result.returncode:
+            diagnostics=result.stderr.decode(errors='replace')
+            reason=next((item for item in ['BROWSER_SELECTOR_TIMEOUT','BROWSER_EXECUTABLE_MISSING','BROWSER_DEPENDENCIES_MISSING','BROWSER_CHECK_FAILED'] if item in diagnostics),'BROWSER_PROCESS_FAILED')
+            raise BackupError('Recovered frontend browser checks failed: '+reason)
         print('Recovered frontend browser login, equipment view and PM runtime calculation passed.',flush=True)
         return 'Local application recovery PASSED: Auth login, REST access, viewer write denial, service recording/meter reset, '+str(len(storage['objects']))+' Storage API upload/readbacks and recovered frontend browser checks.'
     finally:
