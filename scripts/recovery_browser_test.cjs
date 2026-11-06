@@ -14,7 +14,7 @@ const {chromium}=require('playwright');
    const page=await context.newPage();
    await page.goto('http://127.0.0.1:55300');
    await page.locator('#email').fill(creds.email);await page.locator('#password').fill(creds.password);
-   await page.locator('#loginForm button').click();
+   await page.getByRole('button',{name:'Sign in',exact:true}).click();
    await page.locator('#sitesCard').waitFor({state:'visible',timeout:30000});
    await page.evaluate(({id,site})=>window.openEquipment(id,site),{id:config.equipment.id,site:config.equipment.site_id});
    await page.locator('#equipmentBackSite').waitFor({state:'visible',timeout:30000});
