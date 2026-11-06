@@ -639,3 +639,25 @@ Owner approved 30 days of daily backups plus 12 monthly copies. Retention is imp
 Cleanup paginates B2 file versions and permanently deletes exact expired archive IDs and related marker IDs only. Strict namespace/name matching protects unrelated bucket objects. No hide-marker deletion, bucket-wide expiration, or Object Lock bypass. Missing listFiles/deleteFiles capabilities or missing current archive/marker stops cleanup; failed backup export/upload/readback never reaches pruning. User-enabled GitHub Actions failure email is the notification path.
 
 Tests: tests/backup_retention_test.py, four focused tests for day/month/year cutoffs, duplicate versions, unknown file protection, verified monthly preference and verification-required fail-closed behaviour. Verified live backup run 42138243678 PASSED: full database/source/15-file Storage archive uploaded and checksum-readback verified; retention kept all 3 current archive versions and removed 0 expired archives/markers because no backups are old enough yet. The application key has the required list/delete capabilities; future eligible expired version deletion follows the tested planner.
+
+
+## 41. Conversation checkpoint / next-chat handoff (2026-11-05 Pacific)
+
+Owner asked to save this conversation's project state before starting a new chat for further app edits.
+
+### Confirmed current state
+- V3 live tracker: https://fearincognito.github.io/forged-field-pm-tracker-v3/
+- Repository: fearincognito/forged-field-pm-tracker-v3. V2 remains untouched.
+- All feature changes from sections 25–35 are deployed: fleet-reference selection, mistaken equipment/PM removal, one-stock pack-list backup rule, calendar contrast, admin date-range service reports, rental company directory and equipment linkage/contact display, PM schedule editing, rotation-based runtime estimates, and Record Service meter updates.
+- Backup setup is complete: daily 11:17 UTC; private encrypted Backblaze archive of database, tracked source and uploaded Storage files; full download checksum verification; approved retention of 30 days of all daily archives plus one monthly snapshot for current UTC month and prior 11 months.
+- Latest retention-enabled backup run 42138243678 succeeded; 15 Storage files included; all 3 current archive versions kept, zero expired objects deleted.
+- Isolated database restore rehearsal passed (42131998054); local Auth/REST/Storage + Chrome application recovery drill passed (42136725105). See sections 38–40 and BACKUPS.md for scope and setup.
+- GitHub failure notifications are confirmed delivered. Owner connected their personal Gmail separately from work Gmail; newest failure alert read in personal inbox at 4:25 PM Pacific on Nov 5 referred to failed test run 42136471814, before the final successful recovery run. These are earlier test-setup failures, not current backup failures.
+- Personal and work Gmail are distinct connections; choose intended account explicitly from the tool-provided account list. Do not send messages or alter mail without explicit instruction.
+- Secret VALUES remain exclusively in GitHub Actions secrets. Never request them in chat or write them into repository files. Names are documented in BACKUPS.md.
+
+### Useful future verification (discussed, not yet requested to execute)
+Scheduled-PM completion including due-hour progression, service inventory deduction + pack-list quantities, all five roles (owner/admin/mechanic/operator/viewer), date-range service-report exports, and backup failure-email delivery. Email delivery is now verified; remaining workflow checks can be addressed in future work. Existing recovery drill covers a subset, not exhaustive app testing. Real email delivery from Supabase, external map services and production failover are outside the local drill.
+
+### Resume instruction
+Read the current PROJECT_HANDOFF.md in fearincognito/forged-field-pm-tracker-v3, fetch the latest repository state, and continue editing V3. Do not touch V2. Before modifying source, inspect the live default-branch version rather than relying on stale local commits. Preserve existing real equipment/service data and role enforcement. This checkpoint is a project summary, not a verbatim chat transcript.
