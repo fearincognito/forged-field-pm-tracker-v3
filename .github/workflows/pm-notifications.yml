@@ -10,6 +10,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   deliver:
+    if: ${{ vars.PM_ALERTS_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
