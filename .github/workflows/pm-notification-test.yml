@@ -2,6 +2,10 @@ name: V3 notification delivery test
 on:
   workflow_dispatch:
     inputs:
+      push_only:
+        description: Send one test push to the registered V3 owner device
+        type: boolean
+        default: false
       personal_email_only:
         description: Send one email to the private test address
         type: boolean
@@ -13,7 +17,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   test:
-    if: ${{ github.ref == 'refs/heads/main' && vars.PM_ALERTS_ENABLED != 'true' }}
+    if: ${{ github.ref == 'refs/heads/main' && (inputs.push_only || vars.PM_ALERTS_ENABLED != 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -24,6 +28,7 @@ jobs:
       - run: python -m pip install 'psycopg[binary]==3.2.12' 'requests==2.32.5' 'pywebpush==2.2.0'
       - name: Send one test to the V3 owner and registered device
         env:
+          PUSH_ONLY: ${{ inputs.push_only }}
           PERSONAL_EMAIL_ONLY: ${{ inputs.personal_email_only }}
           PM_TEST_EMAIL_TO: ${{ secrets.PM_TEST_EMAIL_TO }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
@@ -63,7 +68,11 @@ jobs:
               return 0
 
           def main():
+              push_only = os.getenv("PUSH_ONLY") == "true"
               if os.getenv("PERSONAL_EMAIL_ONLY") == "true":
+                  if push_only:
+                      print("Choose only one test mode.")
+                      return 1
                   return test_personal_email()
               dsn = os.getenv("SUPABASE_DB_URL")
               if not dsn:
@@ -103,6 +112,8 @@ jobs:
                   ("Push", ("VAPID_PRIVATE_KEY", "VAPID_SUBJECT"),
                    lambda: send_push(target, title, body, f"test-{run_id}")),
               )
+              if push_only:
+                  checks = checks[1:]
               failed = False
               for channel, required, send in checks:
                   missing = [name for name in required if not os.getenv(name)]
