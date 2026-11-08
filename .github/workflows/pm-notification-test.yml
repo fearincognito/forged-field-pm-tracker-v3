@@ -1,0 +1,99 @@
+name: V3 notification delivery test
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: v3-notification-delivery-test
+  cancel-in-progress: false
+jobs:
+  test:
+    if: ${{ github.ref == 'refs/heads/main' && vars.PM_ALERTS_ENABLED != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install 'psycopg[binary]==3.2.12' 'requests==2.32.5' 'pywebpush==2.2.0'
+      - name: Send one test to the V3 owner and registered device
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          PM_EMAIL_FROM: ${{ secrets.PM_EMAIL_FROM }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+        run: |
+          python - <<'PY'
+          import os
+          import sys
+
+          import psycopg
+          from psycopg.conninfo import conninfo_to_dict
+          from psycopg.rows import dict_row
+
+          from scripts.pm_notifications import send_email, send_push
+
+          def main():
+              dsn = os.getenv("SUPABASE_DB_URL")
+              if not dsn:
+                  print("Both channels blocked: SUPABASE_DB_URL is missing.")
+                  return 1
+              ref = "eaehrhqsqmlcjcuzeyoh"
+              params = conninfo_to_dict(dsn)
+              host = params.get("host", "")
+              if params.get("hostaddr") or not (
+                  host == f"db.{ref}.supabase.co"
+                  or (host.endswith(".pooler.supabase.com") and "," not in host
+                      and params.get("user") == f"postgres.{ref}")
+              ):
+                  print("Both channels blocked: database address does not identify V3.")
+                  return 1
+
+              with psycopg.connect(dsn, row_factory=dict_row) as conn:
+                  rows = conn.execute("""
+                      SELECT u.email, s.endpoint, s.p256dh, s.auth_secret
+                      FROM public.pm_push_subscriptions s
+                      JOIN public.profiles p ON p.id = s.user_id
+                      JOIN auth.users u ON u.id = p.id
+                      WHERE p.active AND p.role::text = 'owner' AND u.email IS NOT NULL
+                      LIMIT 2
+                  """).fetchall()
+              if len(rows) != 1:
+                  print("Both channels blocked: expected exactly one registered owner device.")
+                  return 1
+
+              target = rows[0]
+              title = "Forged Field PM Tracker V3 test"
+              body = "This is a one-time delivery test. No maintenance action is required."
+              run_id = os.environ["GITHUB_RUN_ID"]
+              checks = (
+                  ("Email", ("RESEND_API_KEY", "PM_EMAIL_FROM"),
+                   lambda: send_email(target["email"], title, body, f"test-{run_id}")),
+                  ("Push", ("VAPID_PRIVATE_KEY", "VAPID_SUBJECT"),
+                   lambda: send_push(target, title, body, f"test-{run_id}")),
+              )
+              failed = False
+              for channel, required, send in checks:
+                  missing = [name for name in required if not os.getenv(name)]
+                  if missing:
+                      print(f"{channel} blocked: missing {', '.join(missing)}.")
+                      failed = True
+                      continue
+                  try:
+                      send()
+                  except Exception as exc:
+                      status = getattr(getattr(exc, "response", None), "status_code", None)
+                      print(f"{channel} failed: {type(exc).__name__}, HTTP status {status}.")
+                      failed = True
+                  else:
+                      print(f"{channel} accepted by provider. Confirm receipt on the device or in the inbox.")
+              return int(failed)
+
+          try:
+              sys.exit(main())
+          except Exception as exc:
+              print(f"Test setup failed: {type(exc).__name__}.")
+              sys.exit(1)
+          PY
