@@ -96,6 +96,13 @@ function pmEstimatedDueDate(machine,site,nextDueHours,now=new Date()) {
 
 window.openEquipment = async function(equipmentId, siteId) {
   const grid = appView.querySelector(".grid");
+  const alertUrl = new URL(window.location.href);
+  const alertScheduleId = alertUrl.searchParams.get("pm_equipment") === String(equipmentId)
+    ? alertUrl.searchParams.get("pm_schedule") : null;
+  if (alertScheduleId) {
+    for (const key of ["pm_equipment", "pm_site", "pm_schedule"]) alertUrl.searchParams.delete(key);
+    window.history.replaceState(window.history.state, "", alertUrl);
+  }
   grid.innerHTML = `<section class="card" style="grid-column:1/-1;"><p>Loading equipment...</p></section>`;
 
   const [
@@ -157,7 +164,7 @@ window.openEquipment = async function(equipmentId, siteId) {
           const status = pmStatusMeta(schedule.next_due_hours, estimate.hours);
           const estimated = pmEstimatedDueDate(machine, site, schedule.next_due_hours);
           return `
-            <article class="inset-card compact-card" style="${status.style}margin-top:10px;">
+            <article class="inset-card compact-card" data-pm-schedule="${escapeHtml(schedule.id)}" style="${status.style}margin-top:10px;">
               <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;">
                 <div>
                   <strong>${escapeHtml(schedule.service_name)}</strong><br>
@@ -248,6 +255,8 @@ window.openEquipment = async function(equipmentId, siteId) {
         </div>
         <button id="addPmScheduleButton" type="button">+ Add PM Schedule</button>
       </div>
+      ${alertScheduleId && !schedulesError && !schedules?.some(schedule => String(schedule.id) === alertScheduleId)
+        ? '<p role="status">This alert’s maintenance schedule is no longer active.</p>' : ""}
       <div>${scheduleHtml}</div>
 
       <hr style="border:0;border-top:1px solid #d7e0e7;margin:24px 0;">
@@ -268,6 +277,14 @@ window.openEquipment = async function(equipmentId, siteId) {
     </section>`;
 
   document.querySelector("#equipmentBackSite").addEventListener("click", () => openSite(siteId));
+  if (alertScheduleId) {
+    const card = [...grid.querySelectorAll("[data-pm-schedule]")]
+      .find(item => item.dataset.pmSchedule === alertScheduleId);
+    if (card) {
+      card.style.outline = "2px solid #2563a6";
+      card.scrollIntoView({ block: "center" });
+    }
+  }
   if (hasGps) {
     document.querySelector("#equipmentNavigate").addEventListener("click", () => navigateToSite(machine.latitude, machine.longitude));
   }
