@@ -45,7 +45,7 @@ jobs:
           from psycopg.conninfo import conninfo_to_dict
           from psycopg.rows import dict_row
 
-          from scripts.pm_notifications import send_email, send_push
+          from scripts.pm_notifications import pm_schedule_url, send_email, send_push
 
           def test_personal_email():
               required = ("PM_TEST_EMAIL_TO", "RESEND_API_KEY", "PM_EMAIL_FROM")
@@ -98,6 +98,21 @@ jobs:
                       WHERE p.active AND p.role::text = 'owner' AND u.email IS NOT NULL
                       LIMIT 2
                   """).fetchall()
+                  schedule = conn.execute("""
+                          SELECT s.id AS schedule_id, e.id AS equipment_id, si.id AS site_id,
+                                 COALESCE(NULLIF(e.unit_number, ''), e.name, 'Equipment') AS equipment_name,
+                                 s.service_name
+                          FROM public.pm_schedules s
+                          JOIN public.equipment e ON e.id = s.equipment_id
+                          JOIN public.sites si ON si.id = e.site_id
+                          WHERE s.active AND NOT e.archived AND NOT si.archived
+                            AND s.next_due_hours IS NOT NULL
+                          ORDER BY s.id
+                          LIMIT 1
+                  """).fetchone() if push_only else None
+              if push_only and not schedule:
+                  print("Push blocked: no active maintenance schedule available for the test.")
+                  return 1
               if len(rows) != 1:
                   print("Both channels blocked: expected exactly one registered owner device.")
                   return 1
@@ -113,7 +128,11 @@ jobs:
                    lambda: send_push(target, title, body, f"test-{run_id}")),
               )
               if push_only:
-                  checks = checks[1:]
+                  test_title = f"TEST: {schedule['equipment_name']} — {schedule['service_name']}"
+                  test_body = "Tap to open the maintenance schedule. No action is required."
+                  checks = (("Push", ("VAPID_PRIVATE_KEY", "VAPID_SUBJECT"),
+                             lambda: send_push(target, test_title, test_body,
+                                               f"test-{run_id}", pm_schedule_url(schedule))),)
               failed = False
               for channel, required, send in checks:
                   missing = [name for name in required if not os.getenv(name)]

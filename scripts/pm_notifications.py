@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import sys
+from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
 PACIFIC=ZoneInfo("America/Los_Angeles")
@@ -46,10 +47,17 @@ def send_email(to,subject,body,event_id):
       "from":os.environ["PM_EMAIL_FROM"],"to":[to],"subject":subject,"text":body},timeout=25)
     response.raise_for_status()
 
-def send_push(sub,title,body,tag):
+def pm_schedule_url(record):
+    return "./?" + urlencode({
+        "pm_equipment": record["equipment_id"],
+        "pm_site": record["site_id"],
+        "pm_schedule": record["schedule_id"],
+    })
+
+def send_push(sub,title,body,tag,url="./"):
     from pywebpush import webpush
     webpush(subscription_info={"endpoint":sub["endpoint"],"keys":{"p256dh":sub["p256dh"],"auth":sub["auth_secret"]}},
-            data=json.dumps({"title":title,"body":body,"tag":tag,"url":"./"}),
+            data=json.dumps({"title":title,"body":body,"tag":tag,"url":url}),
             vapid_private_key=os.environ["VAPID_PRIVATE_KEY"],
             vapid_claims={"sub":os.environ["VAPID_SUBJECT"]},ttl=86400)
 
@@ -133,7 +141,11 @@ def main():
                     if identity is None:continue
                     try:
                         if channel=="email":send_email(user["email"],title,body,identity)
-                        else:send_push(sub,title,body,f"{rec['schedule_id']}:{due:g}:{level}")
+                        else:
+                            target = pm_schedule_url(rec)
+                            push_title = f"{machine}: {rec['service_name']}"
+                            push_body = f"PM {label} · {rec['site_name']} · Due at {due:g} hrs"
+                            send_push(sub,push_title,push_body,f"{rec['schedule_id']}:{due:g}:{level}",target)
                         mark(conn,identity,"sent")
                         sent+=1
                     except Exception as exc:
