@@ -47,6 +47,13 @@ def send_email(to,subject,body,event_id):
       "from":os.environ["PM_EMAIL_FROM"],"to":[to],"subject":subject,"text":body},timeout=25)
     response.raise_for_status()
 
+def pm_schedule_url(record):
+    return "./?" + urlencode({
+        "pm_equipment": record["equipment_id"],
+        "pm_site": record["site_id"],
+        "pm_schedule": record["schedule_id"],
+    })
+
 def send_push(sub,title,body,tag,url="./"):
     from pywebpush import webpush
     webpush(subscription_info={"endpoint":sub["endpoint"],"keys":{"p256dh":sub["p256dh"],"auth":sub["auth_secret"]}},
@@ -135,11 +142,7 @@ def main():
                     try:
                         if channel=="email":send_email(user["email"],title,body,identity)
                         else:
-                            target = "./?" + urlencode({
-                                "pm_equipment": rec["equipment_id"],
-                                "pm_site": rec["site_id"],
-                                "pm_schedule": rec["schedule_id"],
-                            })
+                            target = pm_schedule_url(rec)
                             push_title = f"{machine}: {rec['service_name']}"
                             push_body = f"PM {label} · {rec['site_name']} · Due at {due:g} hrs"
                             send_push(sub,push_title,push_body,f"{rec['schedule_id']}:{due:g}:{level}",target)
