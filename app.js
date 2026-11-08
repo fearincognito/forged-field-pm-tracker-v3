@@ -65,6 +65,22 @@ async function loadProfile(user) {
 
   showApp();
   renderDashboard();
+  openPmNotification();
+}
+
+function openPmNotification() {
+  const url = new URL(window.location.href);
+  const equipmentId = url.searchParams.get("pm_equipment");
+  const siteId = url.searchParams.get("pm_site");
+  const scheduleId = url.searchParams.get("pm_schedule");
+  const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+  if (![equipmentId, siteId, scheduleId].every(id => id && uuid.test(id))) return;
+
+  const open = () => {
+    if (currentUser) window.openEquipment(equipmentId, siteId);
+  };
+  if (document.readyState === "complete") open();
+  else window.addEventListener("load", open, { once: true });
 }
 
 loginForm.addEventListener("submit", async (event) => {
