@@ -73,7 +73,7 @@ def reserve(conn,user,schedule,due,level,channel,destination):
           RETURNING id""",(user,schedule,due,level,channel,destination))
         row=cur.fetchone()
     conn.commit()
-    return row[0] if row else None
+    return row["id"] if row else None
 
 def mark(conn,id,status,error=None):
     with conn.cursor() as cur:
@@ -160,3 +160,4 @@ if __name__=="__main__":
     except Exception as exc:
         print("PM notifier failed: "+type(exc).__name__)
         sys.exit(1)
+
