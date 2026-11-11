@@ -39,7 +39,7 @@ function setupMock(){
 
 }
 script(`(${setupMock.toString()})()`);
-scripts.forEach(p=>script(fs.readFileSync(path.join(root,p),'utf8')));
+scripts.forEach(p=>script(fs.readFileSync(path.join(root,p.split('?')[0]),'utf8')));
 const get=id=>d.getElementById(id);
 const change=(id,value)=>{get(id).value=value;get(id).dispatchEvent(new w.Event('change',{bubbles:true}));};
 const search=value=>{get('fleetSearch').value=value;get('fleetSearch').dispatchEvent(new w.Event('input',{bubbles:true}));};
@@ -101,3 +101,4 @@ async function form(){w.showAddEquipmentForm('selected-site');await wait(()=>get
  process.stdout.write('PASS: production script load; 277 choices; search; R602 autofill and photo save; current hours; TSU411 preservation; renumbering; duplicate source IDs; ambiguous match; photo failure; manual reset; role visibility; mistake removal; confirmation cancel; ticket protection; PM schedule deletion and cancellation.\n');
  dom.window.close();
 })().catch(e=>{process.stderr.write(e.stack+'\n');dom.window.close();process.exitCode=1;});
+

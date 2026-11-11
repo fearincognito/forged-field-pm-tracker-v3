@@ -673,3 +673,11 @@ Owner requested automatic email and phone push notifications as PM approaches/du
 - Regression source `tests/pm_notifications_test.py`; `.github/workflows/pm-notifications-tests.yml` runs syntax/threshold/rotation checks on commits. Setup and limitations documented in `PM_NOTIFICATIONS.md`.
 
 **Not yet live for delivery**: `PM_ALERTS_ENABLED` repository variable intentionally not set to `true` until administrator creates/verifies Resend sender/API key, VAPID pair, secrets, publishes matching public VAPID key in DB config, registers an iPhone and performs a real end-to-end delivery test. Workflow job is gated to skip while not enabled; no email or push was sent during implementation. Credentials remain outside source/repo; never request private credentials in chat. Current user should be guided one setup step at a time. Do not claim delivery is complete until live tests succeed. V2 untouched.
+
+
+## Record Service safeguards (2026-11-11)
+- The active `service_inventory_usage.js` form now requires an explicit PM schedule selection or deliberate Manual / unscheduled choice. No option silently defaults to unscheduled.
+- Scheduled work previews entered service hours plus the selected positive interval as next due before saving; only that schedule resets. Historical meter readings explain why fewer hours may remain.
+- Unscheduled work clearly warns that no PM countdown resets. Missing/invalid hours or intervals cannot submit.
+- Existing single `record_service_with_inventory` transaction and backend permissions are unchanged. Duplicate in-flight saves and uncertain transport retries are blocked; users must check history before retrying an unconfirmed outcome.
+- `npm run test:service`: 12 isolated DOM/RPC tests, no real records or inventory mutations. Six existing JavaScript regression suites also pass. Fleet-reference suite needs its external collected-reference JSON fixture and was not run; its local script loader now strips cache query strings.
