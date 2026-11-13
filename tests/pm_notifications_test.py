@@ -88,7 +88,7 @@ class PMWorkerTests(unittest.TestCase):
         self.rows = types.ModuleType("psycopg.rows")
         self.rows.dict_row = object()
 
-    def run_worker(self, email_error=None):
+    def run_worker(self, email_error=None, dry_run=False):
         # No real database, credentials, network clients, email or push sends.
         modules = {
             "psycopg": self.psycopg, "psycopg.rows": self.rows,
@@ -99,7 +99,7 @@ class PMWorkerTests(unittest.TestCase):
         with patch.dict(sys.modules, modules), patch.dict(pm.os.environ, environment, clear=True), \
                 patch.object(pm, "send_email", side_effect=email_error) as email, \
                 patch.object(pm, "send_push") as push, patch("builtins.print"):
-            result = pm.main()
+            result = pm.main(dry_run=dry_run)
         self.psycopg.connect.assert_called_once_with("test-placeholder", row_factory=self.rows.dict_row)
         return result, email, push
 
@@ -131,6 +131,26 @@ class PMWorkerTests(unittest.TestCase):
         push.assert_called_once()
         updates = [call.args[1] for call in self.cur.execute.call_args_list if call.args[0].startswith("UPDATE")]
         self.assertEqual(updates, [("failed", "failed", "RuntimeError", 101), ("sent", "sent", None, 102)])
+
+    def test_dry_run_is_read_only_and_never_sends_or_reserves(self):
+        self.cur.fetchone.side_effect = [None, {"status": "sent"}]
+        result, email, push = self.run_worker(dry_run=True)
+        self.assertEqual(result, 0)
+        email.assert_not_called()
+        push.assert_not_called()
+        self.conn.execute.assert_called_once_with("SET TRANSACTION READ ONLY")
+        self.conn.commit.assert_not_called()
+        for call in self.cur.execute.call_args_list:
+            self.assertTrue(call.args[0].lstrip().startswith("SELECT"))
+
+    def test_dry_run_counts_failed_as_retryable_without_mutation(self):
+        self.cur.fetchone.side_effect = [{"status": "failed"}, {"status": "pending"}]
+        result, email, push = self.run_worker(dry_run=True)
+        self.assertEqual(result, 0)
+        email.assert_not_called()
+        push.assert_not_called()
+        self.conn.commit.assert_not_called()
+        self.assertFalse(any("INSERT" in call.args[0] or "UPDATE" in call.args[0] for call in self.cur.execute.call_args_list))
 
 
 if __name__=="__main__":
