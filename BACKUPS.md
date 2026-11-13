@@ -1,6 +1,6 @@
 # Off-site database backups
 
-Run **Actions → Backblaze database backup → Run workflow** for an on-demand copy. Automatic schedule: daily at **11:17 UTC** (03:17 PST / 04:17 PDT). GitHub may delay scheduled runs and can disable schedules on inactive public repositories; check Actions periodically.
+Run **Actions → Backblaze database backup → Run workflow** for an on-demand copy. Primary schedule: daily at **00:00 America/Regina (midnight Saskatchewan), 06:00 UTC year-round**, via the private Supabase dispatcher. The old GitHub 11:17 UTC schedule remains temporarily as a fallback until the first midnight production run is verified. GitHub runner availability can still delay execution; check Actions periodically.
 
 The five credentials (including SUPABASE_SERVICE_ROLE_KEY) belong exclusively in repository Actions secrets. No credential belongs in frontend JavaScript or this document.
 
@@ -22,7 +22,7 @@ For image recovery, verify each object checksum, then use the Supabase Storage A
 
 Database and Storage copies are sequential, not one atomic snapshot. Avoid uploads/replacements during backup; detected changes fail the job for retry. First full successful run: November 5, 2026, run 42131363810; 15 files backed up, full archive 38,918,600 bytes, download checksum verified.
 
-No pruning is configured; timestamped backups accumulate until a retention policy is explicitly set. Backups do not include managed infrastructure settings, database role passwords, Edge Function secrets, or full Git history.
+Retention is configured as described below: all daily archives for 30 days and one monthly snapshot for 12 months. Backups do not include managed infrastructure settings, database role passwords, Edge Function secrets, or full Git history.
 
 ## Restore preparation
 
@@ -73,3 +73,16 @@ Daily and monthly copies overlap; this does not create duplicate archives. As mo
 Only exact timestamp/run-shaped archive names under forged-pm/ and associated verification marker versions are eligible for cleanup. Other bucket objects and hide markers are untouched. Deletion uses exact file version IDs and never bypasses Object Lock. Listing is fully paginated. No pruning occurs after an unsuccessful export, upload, or verification; missing permissions or a missing new verification marker stop cleanup. Retention is in the workflow, not a bucket-wide lifecycle expiration rule.
 
 Tests: tests/backup_retention_test.py covers 30-day cutoff, monthly/year boundaries, exact-version duplicates, verified-copy preference, protection of unrelated objects, and failure without current verification. Actions failure notifications were enabled by the owner.
+
+
+## Private midnight scheduler — November 13, 2026
+
+Supabase Cron job `pm-v3-backup-midnight-saskatchewan` invokes `pm_scheduler_private.dispatch_backup()` at `0 6 * * *` (Cron timezone GMT). It uses the existing encrypted Vault Actions credential for the V3 repository only, with a fixed workflow endpoint; no credential values are present in cron text, source, or logs. The shared credential expires December 13, 2026 and requires renewal before then.
+
+The function is SECURITY INVOKER with fixed search_path and bounded synchronous HTTP timeouts. Anonymous, authenticated and service_role roles have no schema, function or log access. RLS without policies on the private log is intentional default deny. Logs contain only timestamps, HTTP status, run IDs and sanitized SQLSTATE. An advisory lock prevents concurrent dispatcher calls. The existing GitHub `backblaze-database-backup` concurrency group (cancel-in-progress false) serializes all backup/retention executions, including fallback invocations. The handover can produce extra sequential verified copies, never overlapping retention workers.
+
+A one-shot Cron verification fired at 2026-11-13 20:00:00.054 UTC, received HTTP 200, and triggered [run 43497415874](https://github.com/fearincognito/forged-field-pm-tracker-v3/actions/runs/43497415874). Backup succeeded at 20:00:44 UTC: database/source plus 15 Storage files, full download checksum verified; 12 archive versions retained, none deleted. The one-shot job removed itself. First actual midnight occurrence remains to be observed. After verifying that run, remove only the old GitHub schedule stanza, retaining manual and push triggers.
+
+This bypasses delayed GitHub cron events but is not a guaranteed completion SLA: Supabase availability, token validity, GitHub queues and Backblaze remain dependencies. The database dump covers public/auth/storage only, not private scheduler schemas or Vault; scheduler setup and secrets must be recreated during disaster recovery. No production records were changed by verification.
+
+Latest isolated application recovery test also passed November 13, 2026, [attempt 2 of run 42136725105](https://github.com/fearincognito/forged-field-pm-tracker-v3/actions/runs/42136725105/attempts/2), including login, viewer write restrictions, service/meter checks, PM calculations and all 15 file readbacks. This remains a local drill, not a production cutover.
