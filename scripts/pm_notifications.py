@@ -81,8 +81,9 @@ def mark(conn,id,status,error=None):
                     (status,status,error,id))
     conn.commit()
 
-def main():
+def main(dry_run=False):
     needed=("SUPABASE_DB_URL","RESEND_API_KEY","PM_EMAIL_FROM","VAPID_PRIVATE_KEY","VAPID_SUBJECT")
+    if dry_run: needed=("SUPABASE_DB_URL",)
     missing=[x for x in needed if not os.getenv(x)]
     if missing:
         print("NOT READY: PM notification provider secrets are missing: "+", ".join(missing))
@@ -94,6 +95,7 @@ def main():
     today=dt.datetime.now(PACIFIC).date()
     # All SELECTs use the existing V3 database only.
     with psycopg.connect(os.environ["SUPABASE_DB_URL"],row_factory=dict_row) as conn:
+        if dry_run: conn.execute("SET TRANSACTION READ ONLY")
         with conn.cursor() as cur:
             cur.execute("""SELECT s.id schedule_id,s.service_name,s.next_due_hours,
                 e.id equipment_id,e.unit_number,e.name equipment_name,e.current_hours,
@@ -117,7 +119,7 @@ def main():
             subscriptions=cur.fetchall()
         by_user={}
         for sub in subscriptions:by_user.setdefault(sub["user_id"],[]).append(sub)
-        sent=errors=0
+        sent=errors=planned=0
         for rec in records:
             current=estimate(rec,rec,today)
             if current is None:continue
@@ -137,6 +139,15 @@ def main():
                         jobs.append(("push",str(sub["id"]),sub))
                 for channel,dest,sub in jobs:
                     # do not emit the same threshold/due-cycle twice on repeated cron runs.
+                    if dry_run:
+                        with conn.cursor() as cur:
+                            cur.execute("""SELECT status FROM public.pm_notification_delivery
+                                WHERE user_id=%s AND schedule_id=%s AND due_hours=%s
+                                AND level=%s AND channel=%s AND destination_key=%s""",
+                                (user["id"],rec["schedule_id"],rec["next_due_hours"],level,channel,dest))
+                            existing=cur.fetchone()
+                        if existing is None or existing["status"]=="failed": planned+=1
+                        continue
                     identity=reserve(conn,user["id"],rec["schedule_id"],rec["next_due_hours"],level,channel,dest)
                     if identity is None:continue
                     try:
@@ -152,11 +163,18 @@ def main():
                         # Rejected deliveries can be retried next run. Never log sensitive exception bodies.
                         mark(conn,identity,"failed",type(exc).__name__[:80])
                         errors+=1
+        if dry_run:
+            print(f"PM dry run: schedules={len(records)}, recipients={len(recipients)}, would_deliver={planned}; no sends or delivery writes")
+            return 0
         print(f"PM alerts: schedules={len(records)}, recipients={len(recipients)}, delivered={sent}, failed={errors}")
         return 1 if errors else 0
 
 if __name__=="__main__":
-    try:sys.exit(main())
+    import argparse
+    parser=argparse.ArgumentParser()
+    parser.add_argument("--dry-run",action="store_true")
+    args=parser.parse_args()
+    try:sys.exit(main(dry_run=args.dry_run))
     except Exception as exc:
         print("PM notifier failed: "+type(exc).__name__)
         sys.exit(1)
