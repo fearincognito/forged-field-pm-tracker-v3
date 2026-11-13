@@ -5,6 +5,12 @@ on:
     # GitHub schedule is best-effort and may start late; delivery follows execution.
     - cron: '0 13 * * *'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Read-only check; do not send emails or pushes'
+        type: boolean
+        required: false
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -22,7 +28,13 @@ jobs:
           python-version: '3.12'
       - name: Install pinned provider clients
         run: python -m pip install 'psycopg[binary]==3.2.12' 'requests==2.32.5' 'pywebpush==2.2.0'
+      - name: Read-only notification check
+        if: ${{ inputs.dry_run == true }}
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: python scripts/pm_notifications.py --dry-run
       - name: Check configuration and deliver alerts
+        if: ${{ inputs.dry_run != true }}
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
