@@ -7,7 +7,7 @@ The five credentials (including SUPABASE_SERVICE_ROLE_KEY) belong exclusively in
 ## Contents and verification
 
 Each private, server-side-encrypted Backblaze archive includes:
-- `database.dump`: PostgreSQL 17 custom dump of public, auth and storage schemas and data, without ownership/ACL restoration statements.
+- `database.dump`: PostgreSQL 17 custom dump of public, auth, storage and account_audit_private schemas and data, without ownership/ACL restoration statements.
 - `source.tar`: tracked source at the workflow commit.
 - `manifest.json`: checksums, timestamp and declared coverage/limitations.
 
@@ -83,6 +83,15 @@ The function is SECURITY INVOKER with fixed search_path and bounded synchronous 
 
 A one-shot Cron verification fired at 2026-11-13 20:00:00.054 UTC, received HTTP 200, and triggered [run 43497415874](https://github.com/fearincognito/forged-field-pm-tracker-v3/actions/runs/43497415874). Backup succeeded at 20:00:44 UTC: database/source plus 15 Storage files, full download checksum verified; 12 archive versions retained, none deleted. The one-shot job removed itself. First actual midnight occurrence remains to be observed. After verifying that run, remove only the old GitHub schedule stanza, retaining manual and push triggers.
 
-This bypasses delayed GitHub cron events but is not a guaranteed completion SLA: Supabase availability, token validity, GitHub queues and Backblaze remain dependencies. The database dump covers public/auth/storage only, not private scheduler schemas or Vault; scheduler setup and secrets must be recreated during disaster recovery. No production records were changed by verification.
+This bypasses delayed GitHub cron events but is not a guaranteed completion SLA: Supabase availability, token validity, GitHub queues and Backblaze remain dependencies. The database dump covers public/auth/storage/account_audit_private, not private scheduler schemas or Vault; scheduler setup and secrets must be recreated during disaster recovery. No production records were changed by verification.
 
 Latest isolated application recovery test also passed November 13, 2026, [attempt 2 of run 42136725105](https://github.com/fearincognito/forged-field-pm-tracker-v3/actions/runs/42136725105/attempts/2), including login, viewer write restrictions, service/meter checks, PM calculations and all 15 file readbacks. This remains a local drill, not a production cutover.
+
+
+## Account audit backup coverage — November 13, 2026
+
+The allowlisted `account_audit_private` schema is now included in the PostgreSQL dump and manifest, covering events, operation records, sequences, functions, triggers and table definitions/RLS. No Vault or private scheduler schema/credential was added. The archive TOC validation fails closed if either audit table's data section is missing. Older archives created before this change do not contain Account History; the recovery test now rejects those as current complete-audit recovery candidates.
+
+[Backup 43501918626](https://github.com/fearincognito/forged-field-pm-tracker-v3/actions/runs/43501918626) succeeded with full download checksum verification. The existing production audit tables contained zero rows, as no historical events were fabricated. [Database restore 43502111581](https://github.com/fearincognito/forged-field-pm-tracker-v3/actions/runs/43502111581) and [application recovery 43502122836](https://github.com/fearincognito/forged-field-pm-tracker-v3/actions/runs/43502122836) passed. Within disposable PostgreSQL only, a synthetic operation/event pair was inserted, dumped with the same four-schema selection, restored into a second disposable database, and exact ordered row fingerprints/counts compared. RLS and private-schema access restrictions were checked. Synthetic data never reached production or Backblaze. The application test also passed login, viewer write denial, service/meter update, PM calculation and all 15 Storage API readbacks.
+
+Syntax checks and four retention regression tests passed; retention and daily scheduling are unchanged. Application recovery now also triggers when the shared restore script changes. ACL/ownership remains intentionally excluded, so production recovery still requires restoring appropriate grants as documented.
