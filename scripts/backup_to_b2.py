@@ -269,16 +269,17 @@ def main():
         for variable in ['PGHOST','PGPORT','PGUSER','PGPASSWORD','PGDATABASE','PGSSLMODE','PGCONNECT_TIMEOUT']:
             docker.extend(['-e',variable])
         docker.append('postgres:17')
-        print('Exporting public, auth and storage database schemas…', flush=True)
+        print('Exporting public, auth, storage and private account audit schemas…', flush=True)
         with database.open('wb') as f:
-            run(docker + ['pg_dump', '--format=custom', '--no-owner', '--no-privileges', '--schema=public', '--schema=auth', '--schema=storage'], env=db_env, output=f)
+            run(docker + ['pg_dump', '--format=custom', '--no-owner', '--no-privileges', '--schema=public', '--schema=auth', '--schema=storage', '--schema=account_audit_private'], env=db_env, output=f)
         if database.stat().st_size < 100:
             raise BackupError('Database dump is empty.')
         # Verify the archive is readable without touching the live database.
         with database.open('rb') as f:
             result = subprocess.run(['docker', 'run', '--rm', '-i', 'postgres:17', 'pg_restore', '--list'], stdin=f, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if result.returncode or b'TABLE DATA public equipment' not in result.stdout:
-            raise BackupError('Database dump validation failed: equipment table data is missing.')
+        required_tables = [b'TABLE DATA public equipment', b'TABLE DATA account_audit_private events', b'TABLE DATA account_audit_private operations']
+        if result.returncode or any(table not in result.stdout for table in required_tables):
+            raise BackupError('Database dump validation failed: required equipment or account audit table data is missing.')
         with (root / 'source.tar').open('wb') as f:
             run(['git', 'archive', '--format=tar', 'HEAD'], output=f)
         storage = export_storage(root, inventory)
@@ -286,7 +287,7 @@ def main():
         metadata = {'created_at': now.isoformat(), 'project': 'eaehrhqsqmlcjcuzeyoh',
                     'commit': os.environ.get('GITHUB_SHA'), 'database_sha256': sha256(database),
                     'source_sha256': sha256(root / 'source.tar'),
-                    'database_schemas': ['public', 'auth', 'storage'],
+                    'database_schemas': ['public', 'auth', 'storage', 'account_audit_private'],
                     'storage_file_bytes_included': True, 'storage': storage,
                     'limitations': ['Database and Storage exports are sequential, not a single transactional snapshot.',
                                     'Restore into a compatible Supabase project; managed roles/extensions/platform settings are not included.',
@@ -335,3 +336,4 @@ if __name__ == '__main__':
     except Exception:
         print('::error::Backup failed; sensitive exception details suppressed. Check network access and configured secrets.', file=sys.stderr)
         sys.exit(1)
+
