@@ -41,6 +41,34 @@ def extract_checked(archive, destination):
         tar.extractall(destination, filter='data')
 
 
+def verify_audit_roundtrip(container, psql):
+    """Exercise audit row backup/restoration only in disposable PostgreSQL."""
+    audit_check = b"""do $$ begin
+      if (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace
+          where n.nspname='account_audit_private' and c.relname in ('events','operations') and c.relrowsecurity) <> 2
+      then raise exception 'Private account audit RLS missing'; end if;
+      if has_schema_privilege('anon','account_audit_private','USAGE') or
+         has_schema_privilege('authenticated','account_audit_private','USAGE')
+      then raise exception 'Private account audit schema exposed'; end if;
+    end $$;"""
+    command(psql, audit_check)
+    marker = secrets.token_hex(16)
+    operation = command(psql, ("insert into account_audit_private.operations(actor_user_id,actor_name,mode,full_name,role,site_ids,status) values (gen_random_uuid(),'Recovery test','invite','Recovery test " + marker + "','viewer','{}','succeeded') returning id;").encode()).decode().splitlines()[0]
+    command(psql, ("insert into account_audit_private.events(operation_id,actor_name,target_name,event_type,outcome,before_values,after_values,detail) values ('" + operation + "','Recovery test','Recovery test','invitation_succeeded','succeeded',null,'{\"role\":\"viewer\"}','" + marker + "');").encode())
+    fingerprint = b"select json_build_object('events_count',(select count(*) from account_audit_private.events),'events_hash',(select md5(coalesce(string_agg(row_to_json(e)::text,E'\\n' order by id),'')) from account_audit_private.events e),'operations_count',(select count(*) from account_audit_private.operations),'operations_hash',(select md5(coalesce(string_agg(row_to_json(o)::text,E'\\n' order by id),'')) from account_audit_private.operations o));"
+    expected = command(psql, fingerprint)
+    command(['docker','exec',container,'pg_dump','-U','postgres','-d','postgres','--format=custom','--no-owner','--no-privileges','--schema=public','--schema=auth','--schema=storage','--schema=account_audit_private','-f','/tmp/audit-roundtrip.dump'])
+    command(psql, b'CREATE DATABASE audit_roundtrip TEMPLATE template0;')
+    secondary = ['docker','exec','-i',container,'psql','-X','-U','postgres','-d','audit_roundtrip','-v','ON_ERROR_STOP=1','-At']
+    command(secondary,b'CREATE SCHEMA extensions; CREATE EXTENSION "uuid-ossp" SCHEMA extensions; CREATE EXTENSION pgcrypto SCHEMA extensions;')
+    command(['docker','exec',container,'pg_restore','--exit-on-error','--no-owner','--no-privileges','--clean','--if-exists','-U','postgres','-d','audit_roundtrip','/tmp/audit-roundtrip.dump'])
+    if command(secondary, fingerprint) != expected:
+        raise BackupError('Private account audit roundtrip row verification failed.')
+    command(secondary, audit_check)
+    command(psql, ("delete from account_audit_private.events where operation_id='" + operation + "'; delete from account_audit_private.operations where id='" + operation + "'; DROP DATABASE audit_roundtrip;").encode())
+    print('Private account audit schema and rows passed isolated dump/restore roundtrip, including synthetic operation/event and default-deny access.', flush=True)
+
+
 def main():
     os.umask(0o077)
     for name in ['B2_APPLICATION_KEY_ID', 'B2_APPLICATION_KEY', 'B2_BUCKET_NAME']:
@@ -75,6 +103,8 @@ def main():
             if latest.get('contentSha1') != h.hexdigest(): raise BackupError('Downloaded backup transport checksum mismatch.')
             restored = root / 'restored'; restored.mkdir(); extract_checked(bundle, restored)
             manifest = json.loads((restored / 'manifest.json').read_text())
+            if 'account_audit_private' not in manifest.get('database_schemas', []):
+                raise BackupError('Latest archive predates private account audit coverage.')
             if not manifest.get('storage_file_bytes_included'): raise BackupError('Latest archive predates full Storage coverage.')
             for name,key in [('database.dump','database_sha256'),('source.tar','source_sha256')]:
                 if sha256(restored/name) != manifest[key]: raise BackupError('Archive component checksum mismatch: ' + name)
@@ -121,6 +151,8 @@ def main():
               'service_history',(select count(*) from public.service_history),
               'pm_schedules',(select count(*) from public.pm_schedules),
               'storage_objects',(select count(*) from storage.objects),
+              'account_audit_events',(select count(*) from account_audit_private.events),
+              'account_audit_operations',(select count(*) from account_audit_private.operations),
               'foreign_keys',(select count(*) from pg_constraint where contype='f'),
               'unvalidated_constraints',(select count(*) from pg_constraint where not convalidated),
               'rls_tables',(select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relrowsecurity),
@@ -130,6 +162,7 @@ def main():
             if counts['equipment']<1 or counts['sites']<1 or counts['profiles']<1 or counts['policies']<1:
                 raise BackupError('Critical restored application objects are missing.')
             if counts['storage_objects']!=len(storage['objects']):raise BackupError('Restored Storage database rows do not match recovered files.')
+            verify_audit_roundtrip(container, psql)
             # Check exact bucket/name associations without printing personal file paths.
             mapping=json.loads(command(psql,b"select coalesce(json_agg(json_build_array(bucket_id,name)), '[]'::json) from storage.objects;").decode())
             if {tuple(row) for row in mapping}!={(o['bucket'],o['name']) for o in storage['objects']}:
@@ -166,3 +199,4 @@ if __name__=='__main__':
         print('::error::'+str(e),file=sys.stderr);sys.exit(1)
     except Exception:
         print('::error::Restore test failed; sensitive exception details suppressed.',file=sys.stderr);sys.exit(1)
+
