@@ -1,11 +1,11 @@
 # V3 PM notifications
 
-Status (verified 2026-11-13): **email delivery is enabled and verified; the daily check is scheduled for 07:00 America/Regina (13:00 UTC)**. GitHub Actions scheduling is best-effort, not a guarantee of a 07:00 start. Recent scheduled runs started several hours late. Changing the cron does not resolve that platform delay.
+Status (verified 2026-11-13): **email delivery is enabled; Supabase Cron now requests the daily check at 07:00 America/Regina (13:00 UTC)**. Its private dispatcher invokes the existing GitHub worker, preserving recipients, thresholds and delivery deduplication. The older GitHub schedule remains temporarily as a fallback until the first production morning run is verified.
 The workflow job has a protective repository variable gate `PM_ALERTS_ENABLED=true`. Do not enable it until the secrets, public VAPID key, and sender are tested.
 
 ## Behavior
 
-The existing PM thresholds are 50 hours (yellow), 20 hours (orange), and due/overdue (red). The scheduled worker is requested every day at 13:00 UTC, which is 07:00 Saskatchewan time (America/Regina, UTC-6 year-round). GitHub Actions schedules can be delayed; qualifying emails are sent when the worker actually executes. It evaluates active PM schedules for non-archived equipment/sites and uses actual machine hours plus elapsed working days according to the site's rotation, matching the frontend estimate. Out-of-service equipment does not accumulate estimated hours.
+The existing PM thresholds are 50 hours (yellow), 20 hours (orange), and due/overdue (red). The scheduled worker is requested every day at 13:00 UTC, which is 07:00 Saskatchewan time (America/Regina, UTC-6 year-round). Supabase Cron triggers the worker directly to bypass GitHub cron-event delays; GitHub runner availability and email-provider delivery can still add latency. Qualifying emails are sent when the worker actually executes. It evaluates active PM schedules for non-archived equipment/sites and uses actual machine hours plus elapsed working days according to the site's rotation, matching the frontend estimate. Out-of-service equipment does not accumulate estimated hours.
 
 Recipients: active Owner, Admin and Mechanic accounts with an Auth email. By default email alerts are enabled; each recipient can change email/push preferences in Dashboard → PM Notifications. Push is only sent to devices that the user explicitly registers. Viewer and Operator roles are not enrolled in these alerts.
 
@@ -38,8 +38,19 @@ Security: subscriptions and preferences are self-service via Supabase RLS; deliv
 
 - Live catch-up run 42911146844 on November 10 sent six emails and three pushes with zero provider errors after the reservation fix (5895a78). Three emails were verified in the owner's work inbox. Other recipients' inbox arrival and individual phone display are not established by provider acceptance.
 - Scheduled runs on November 11 and 12 succeeded. November 12 run 43314220640 checked 10 schedules and 2 recipients, sent 0 new alerts and reported 0 failures.
-- The November 13 schedule change preserves the existing worker, recipients, thresholds and deduplication. It does not replay alerts or send a test email. Its first scheduled execution has not yet been observed.
-- A scheduled workflow run may be delayed by GitHub.
+- The November 13 scheduler change preserves recipients, thresholds and deduplication. No test emails were sent. The first 07:00 production execution remains to be observed.
+- GitHub runner queues, Supabase availability (including Free-plan inactivity pausing), and provider delivery remain dependencies; this is not a guaranteed inbox-delivery SLA.
 - Push requires user permission, a supported installed app/browser and normal delivery by OS push services.
 - Severe overdue status triggers once for the current due-hour point, not a daily repeat. Weekly overdue reminders can be added later if desired.
 - This does not send alerts to operators or viewers.
+
+
+## Private daily scheduler (2026-11-13)
+
+- Supabase Cron job `pm-v3-daily-0700-saskatchewan`: `0 13 * * *` (server Cron timezone GMT), invokes `pm_scheduler_private.dispatch_pm(false)`.
+- Synchronous `http` in a private schema replaces `pg_net`; the shared network queue extension was removed before any credential was used. App roles cannot use this schema or dispatcher; Vault reads are denied to anonymous/authenticated roles. The dispatcher is SECURITY INVOKER, with a fixed endpoint and bounded connect/request timeouts.
+- The GitHub token is encrypted in Vault as `pm_v3_github_actions_token`. Scope: V3 repo only, Actions read/write plus mandatory metadata read. Expires **2026-12-13** and must be renewed before then. Never put the token in SQL source, cron text, logs or this repository.
+- `pm_scheduler_private.dispatch_log` stores only timestamp, dry-run flag, HTTP status, run ID and sanitized SQLSTATE, not request headers or response bodies. RLS without policies is intentional default-deny defense in depth for this private log.
+- Manual dispatch verification run `43495648926` succeeded: 10 schedules, 2 recipients, 0 would-deliver; delivery step skipped. Cron-fired verification started at `2026-11-13T19:50:00.104Z` and received HTTP200/run `43495884030`. Temporary verification job removed itself.
+- Dry-run input is boolean `dry_run=true`; worker uses a READ ONLY transaction and skips reservations/sends. Provider secrets are not supplied to the dry-run step. Run the 11-test suite with `python tests/pm_notifications_test.py`.
+- During handover the GitHub concurrency group serializes workers; the existing unique delivery key and atomic reservation skip already sent/pending alerts. After confirming the first morning production run, remove only the GitHub `schedule` stanza, retaining `workflow_dispatch`.
