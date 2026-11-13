@@ -1,0 +1,11 @@
+{
+  "name": "pm-tracker-security-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node admin_update_user.mjs"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "0.3.14"
+  }
+}
