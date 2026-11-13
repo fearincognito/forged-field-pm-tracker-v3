@@ -1,11 +1,11 @@
 # V3 PM notifications
 
-Status: **code deployed; delivery disabled until provider setup and device registration are completed**.
+Status (verified 2026-11-13): **email delivery is enabled and verified; the daily check is scheduled for 07:00 America/Regina (13:00 UTC)**. GitHub Actions scheduling is best-effort, not a guarantee of a 07:00 start. Recent scheduled runs started several hours late. Changing the cron does not resolve that platform delay.
 The workflow job has a protective repository variable gate `PM_ALERTS_ENABLED=true`. Do not enable it until the secrets, public VAPID key, and sender are tested.
 
 ## Behavior
 
-The existing PM thresholds are 50 hours (yellow), 20 hours (orange), and due/overdue (red). The scheduled worker runs every day at 15:17 UTC (GitHub Actions schedules can be delayed). It evaluates active PM schedules for non-archived equipment/sites and uses actual machine hours plus elapsed working days according to the site's rotation, matching the frontend estimate. Out-of-service equipment does not accumulate estimated hours.
+The existing PM thresholds are 50 hours (yellow), 20 hours (orange), and due/overdue (red). The scheduled worker is requested every day at 13:00 UTC, which is 07:00 Saskatchewan time (America/Regina, UTC-6 year-round). GitHub Actions schedules can be delayed; qualifying emails are sent when the worker actually executes. It evaluates active PM schedules for non-archived equipment/sites and uses actual machine hours plus elapsed working days according to the site's rotation, matching the frontend estimate. Out-of-service equipment does not accumulate estimated hours.
 
 Recipients: active Owner, Admin and Mechanic accounts with an Auth email. By default email alerts are enabled; each recipient can change email/push preferences in Dashboard → PM Notifications. Push is only sent to devices that the user explicitly registers. Viewer and Operator roles are not enrolled in these alerts.
 
@@ -36,7 +36,9 @@ Security: subscriptions and preferences are self-service via Supabase RLS; deliv
 
 ## Current limitations
 
-- The system has not yet sent a live email/push test until provider credentials and a device subscription are configured.
+- Live catch-up run 42911146844 on November 10 sent six emails and three pushes with zero provider errors after the reservation fix (5895a78). Three emails were verified in the owner's work inbox. Other recipients' inbox arrival and individual phone display are not established by provider acceptance.
+- Scheduled runs on November 11 and 12 succeeded. November 12 run 43314220640 checked 10 schedules and 2 recipients, sent 0 new alerts and reported 0 failures.
+- The November 13 schedule change preserves the existing worker, recipients, thresholds and deduplication. It does not replay alerts or send a test email. Its first scheduled execution has not yet been observed.
 - A scheduled workflow run may be delayed by GitHub.
 - Push requires user permission, a supported installed app/browser and normal delivery by OS push services.
 - Severe overdue status triggers once for the current due-hour point, not a daily repeat. Weekly overdue reminders can be added later if desired.
