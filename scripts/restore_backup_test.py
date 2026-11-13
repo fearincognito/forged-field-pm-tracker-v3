@@ -69,7 +69,7 @@ def verify_audit_roundtrip(container, psql):
     print('Private account audit schema and rows passed isolated dump/restore roundtrip, including synthetic operation/event and default-deny access.', flush=True)
 
 
-def main():
+def main(recovery_callback=None):
     os.umask(0o077)
     for name in ['B2_APPLICATION_KEY_ID', 'B2_APPLICATION_KEY', 'B2_BUCKET_NAME']:
         if not os.environ.get(name):
@@ -178,6 +178,9 @@ def main():
             do $$ begin if not public.is_admin() or not exists(select 1 from public.equipment) then raise exception 'Owner access failed'; end if; end $$;
             reset role;"""
             command(psql,permissions)
+            if recovery_callback is not None:
+                recovery_callback(root, restored, container, psql, storage)
+                return
             if os.environ.get('RESTORE_APPLICATION_TEST') == '1':
                 from app_recovery_test import application_test
                 app_summary = application_test(root, restored, container, psql, storage)
