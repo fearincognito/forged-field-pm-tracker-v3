@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/backblaze-app-recovery.yml'
       - 'scripts/app_recovery_test.py'
+      - 'scripts/restore_backup_test.py'
       - 'scripts/recovery_browser_test.cjs'
 permissions:
   contents: read
