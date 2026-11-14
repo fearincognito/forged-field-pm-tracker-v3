@@ -1,7 +1,5 @@
 name: Backblaze database backup
 on:
-  schedule:
-    - cron: '17 11 * * *'
   workflow_dispatch:
   push:
     branches: [main]
